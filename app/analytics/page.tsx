@@ -5,7 +5,8 @@ import styles from './page.module.css';
 import MetricCard from '@/components/MetricCard';
 import AnalysisMetricCard from '@/components/AnalysisMetricCard';
 
-type DatePreset = 'today' | '7days' | '30days' | 'custom';
+type DatePreset = 'today' | '7days' | '14days' | '30days' | 'custom';
+type ActiveTab = 'overview' | 'waste' | 'efficiency' | 'quota' | 'trends';
 
 interface MetricsSummary {
   ty_le_hao_phi_tong: number;
@@ -56,6 +57,33 @@ interface SankeyData {
   }>;
 }
 
+interface ProductionFlowData {
+  SL_Ep: number;              // Sau máy ép
+  SL_TruocLo: number;         // Trước lò nung
+  SL_SauLo: number;           // Sau lò nung
+  SL_TruocMai: number;        // Trước mài mặt
+  SL_SauMaiCanh: number;      // Sau mài cạnh
+  SL_TruocDongHop: number;    // Trước đóng hộp (thành phẩm)
+  
+  // Hao phí
+  HP_Moc: number;             // Hao phí mộc
+  TyLe_HP_Moc: number;
+  HP_Lo: number;              // Hao phí lò
+  TyLe_HP_Lo: number;
+  HP_TM: number;              // Hao phí trước mài
+  TyLe_HP_TM: number;
+  HP_HT: number;              // Hao phí hoàn thiện
+  TyLe_HP_HT: number;
+  TongHaoPhi: number;
+  TyLe_TongHaoPhi: number;
+  
+  // Hiệu suất
+  HieuSuat_Moc: number;
+  HieuSuat_Lo: number;
+  HieuSuat_TruocMai: number;
+  HieuSuat_ThanhPham: number;
+}
+
 interface QuotaComparison {
   san_luong_khoan: number;
   san_luong_thuc_te: number;
@@ -66,17 +94,21 @@ interface QuotaComparison {
 }
 
 export default function AnalyticsPage() {
+  const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [selectedLine, setSelectedLine] = useState<number>(1);
   const [selectedBrickType, setSelectedBrickType] = useState<number | null>(null);
-  const [datePreset, setDatePreset] = useState<DatePreset>('7days');
+  const [datePreset, setDatePreset] = useState<DatePreset>('today');
   const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
   });
   const [selectedShift, setSelectedShift] = useState<string>('');
+  const [viewMode, setViewMode] = useState<'single' | 'range'>('single'); // single day or range
+  const [dailyData, setDailyData] = useState<any[]>([]); // For multi-day table view
   
   const [summary, setSummary] = useState<MetricsSummary | null>(null);
   const [sankeyData, setSankeyData] = useState<SankeyData | null>(null);
+  const [productionFlow, setProductionFlow] = useState<ProductionFlowData | null>(null);
   const [quotaComparison, setQuotaComparison] = useState<QuotaComparison | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -89,26 +121,42 @@ export default function AnalyticsPage() {
     const endDate = today.toISOString().split('T')[0];
     
     let startDate = endDate;
+    let mode: 'single' | 'range' = 'single';
+    
     switch (preset) {
-      case 'today':
-        startDate = endDate;
-        break;
       case '7days':
-        startDate = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        startDate = new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        mode = 'range';
+        break;
+      case '14days':
+        startDate = new Date(today.getTime() - 13 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        mode = 'range';
         break;
       case '30days':
-        startDate = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        startDate = new Date(today.getTime() - 29 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        mode = 'range';
         break;
       case 'custom':
+        // Don't change dates, just set preset
         return;
+      case 'today':
+      default:
+        startDate = endDate;
+        mode = 'single';
+        break;
     }
     
     setDateRange({ startDate, endDate });
+    setViewMode(mode);
   };
 
   useEffect(() => {
     fetchAnalyticsData();
   }, [selectedLine, selectedBrickType, dateRange, selectedShift]);
+
+  useEffect(() => {
+    console.log('dailyData changed:', dailyData);
+  }, [dailyData]);
 
   const fetchAnalyticsData = async () => {
     setLoading(true);
@@ -127,7 +175,55 @@ export default function AnalyticsPage() {
         queryParams.append('shift', selectedShift);
       }
 
-      // Fetch summary
+      // Determine if we need daily breakdown
+      const start = new Date(dateRange.startDate);
+      const end = new Date(dateRange.endDate);
+      const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+      const isMultipleDays = daysDiff > 0;
+
+      console.log('fetchAnalyticsData called:', {
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        daysDiff,
+        isMultipleDays
+      });
+
+      if (isMultipleDays) {
+        // Fetch daily breakdown data using the new endpoint
+        try {
+          console.log(`Fetching daily breakdown: ${API_URL}/production-metrics/daily-breakdown?${queryParams}`);
+          const dailyRes = await fetch(`${API_URL}/production-metrics/daily-breakdown?${queryParams}`);
+          
+          if (dailyRes.ok) {
+            const dailyBreakdown = await dailyRes.json();
+            console.log('Daily breakdown received:', dailyBreakdown);
+            
+            // Add date to each item
+            const start = new Date(dateRange.startDate);
+            const dataWithDates = dailyBreakdown.map((item: any, index: number) => {
+              const currentDate = new Date(start);
+              currentDate.setDate(start.getDate() + index);
+              return {
+                date: currentDate.toISOString().split('T')[0],
+                ...item
+              };
+            });
+            
+            console.log(`Setting dailyData with ${dataWithDates.length} items:`, dataWithDates);
+            setDailyData(dataWithDates);
+          } else {
+            console.warn('Failed to fetch daily breakdown, status:', dailyRes.status);
+            setDailyData([]);
+          }
+        } catch (err) {
+          console.error('Error fetching daily breakdown:', err);
+          setDailyData([]);
+        }
+      } else {
+        setDailyData([]);
+      }
+
+      // Fetch summary for current selection
       const summaryRes = await fetch(`${API_URL}/production-metrics/summary?${queryParams}`);
       if (summaryRes.ok) {
         const summaryData = await summaryRes.json();
@@ -141,6 +237,46 @@ export default function AnalyticsPage() {
       if (sankeyRes.ok) {
         const sankeyDataRes = await sankeyRes.json();
         setSankeyData(sankeyDataRes);
+        
+        // Transform to production flow data
+        if (sankeyDataRes && sankeyDataRes.links && sankeyDataRes.links.length >= 4) {
+          const SL_Ep = sankeyDataRes.links[0]?.value || 0;
+          const SL_TruocLo = sankeyDataRes.links[1]?.value || 0;
+          const SL_SauLo = sankeyDataRes.links[2]?.value || 0;
+          const SL_TruocMai = sankeyDataRes.links[3]?.value || 0;
+          const SL_TruocDongHop = sankeyDataRes.links[sankeyDataRes.links.length - 1]?.value || 0;
+          
+          const HP_Moc = SL_Ep - SL_TruocLo;
+          const HP_Lo = SL_TruocLo - SL_SauLo;
+          const HP_TM = SL_SauLo - SL_TruocMai;
+          const HP_HT = SL_TruocMai - SL_TruocDongHop;
+          const TongHaoPhi = HP_Moc + HP_Lo + HP_TM + HP_HT;
+          
+          setProductionFlow({
+            SL_Ep,
+            SL_TruocLo,
+            SL_SauLo,
+            SL_TruocMai,
+            SL_SauMaiCanh: SL_TruocMai, // Placeholder
+            SL_TruocDongHop,
+            
+            HP_Moc,
+            TyLe_HP_Moc: SL_Ep > 0 ? (HP_Moc / SL_Ep) * 100 : 0,
+            HP_Lo,
+            TyLe_HP_Lo: SL_Ep > 0 ? (HP_Lo / SL_Ep) * 100 : 0,
+            HP_TM,
+            TyLe_HP_TM: SL_Ep > 0 ? (HP_TM / SL_Ep) * 100 : 0,
+            HP_HT,
+            TyLe_HP_HT: SL_Ep > 0 ? (HP_HT / SL_Ep) * 100 : 0,
+            TongHaoPhi,
+            TyLe_TongHaoPhi: SL_Ep > 0 ? (TongHaoPhi / SL_Ep) * 100 : 0,
+            
+            HieuSuat_Moc: SL_Ep > 0 ? (SL_TruocLo / SL_Ep) * 100 : 0,
+            HieuSuat_Lo: SL_Ep > 0 ? (SL_SauLo / SL_Ep) * 100 : 0,
+            HieuSuat_TruocMai: SL_Ep > 0 ? (SL_TruocMai / SL_Ep) * 100 : 0,
+            HieuSuat_ThanhPham: SL_Ep > 0 ? (SL_TruocDongHop / SL_Ep) * 100 : 0,
+          });
+        }
       }
 
       // Fetch quota comparison
@@ -175,171 +311,531 @@ export default function AnalyticsPage() {
     }
   };
 
-  if (loading) {
+  const renderDailyTable = () => {
+    if (!dailyData || dailyData.length === 0) {
+      return (
+        <div className={styles.dailyTableSection}>
+          <div className={styles.tableHeader}>
+            <h3>📊 Báo cáo chi tiết theo ngày</h3>
+          </div>
+          <div className={styles.noData}>
+            <p>⏳ Đang tải dữ liệu theo ngày...</p>
+            <p className={styles.noDataSub}>Hoặc không có dữ liệu cho khoảng thời gian này</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
-      <div className={styles.container}>
-        <div className={styles.loadingWrapper}>
-          <div className={styles.spinner}></div>
-          <p>Đang tải dữ liệu phân tích...</p>
+      <div className={styles.dailyTableSection}>
+        <div className={styles.tableHeader}>
+          <h3>📊 Báo cáo chi tiết theo ngày</h3>
+          <div className={styles.tableMeta}>
+            <span className={styles.dayCount}>{dailyData.length} ngày</span>
+            <span>•</span>
+            <span>{new Date(dateRange.startDate).toLocaleDateString('vi-VN')} - {new Date(dateRange.endDate).toLocaleDateString('vi-VN')}</span>
+          </div>
+        </div>
+
+        <div className={styles.tableWrapper}>
+          <table className={styles.dailyTable}>
+            <thead>
+              <tr>
+                <th rowSpan={2} className={styles.stickyCol}>Ngày</th>
+                <th colSpan={2}>Hiệu suất</th>
+                <th colSpan={5}>Hao phí (%)</th>
+                <th colSpan={2}>Sản lượng (m²)</th>
+                <th colSpan={2}>Đạt khoán</th>
+                <th rowSpan={2}>Trạng thái</th>
+              </tr>
+              <tr>
+                <th>HS (%)</th>
+                <th>Đánh giá</th>
+                <th>HP Mộc</th>
+                <th>HP Lò</th>
+                <th>HP Trước mài</th>
+                <th>HP Hoàn thiện</th>
+                <th>Tổng HP</th>
+                <th>Thực tế</th>
+                <th>Khoán</th>
+                <th>Tỷ lệ (%)</th>
+                <th>Kết quả</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dailyData.map((day: any, idx: number) => {
+                const chenh_lech = (day.san_luong_thuc_te || 0) - (day.san_luong_khoan || 0);
+                const ty_le_dat_khoan = day.san_luong_khoan ? ((day.san_luong_thuc_te / day.san_luong_khoan) * 100) : 0;
+                
+                return (
+                  <tr key={idx}>
+                    <td className={`${styles.dateCell} ${styles.stickyCol}`}>
+                      {new Date(day.date).toLocaleDateString('vi-VN', { 
+                        weekday: 'short', 
+                        day: '2-digit', 
+                        month: '2-digit' 
+                      })}
+                    </td>
+                    
+                    {/* Hiệu suất */}
+                    <td className={day.hieu_suat_san_xuat >= 90 ? styles.good : day.hieu_suat_san_xuat >= 85 ? styles.warning : styles.danger}>
+                      <strong>{day.hieu_suat_san_xuat?.toFixed(1) || '-'}%</strong>
+                    </td>
+                    <td>
+                      {day.hieu_suat_san_xuat >= 90 
+                        ? <span className={`${styles.badge} ${styles.badgeGood}`}>Xuất sắc</span>
+                        : day.hieu_suat_san_xuat >= 85
+                        ? <span className={`${styles.badge} ${styles.badgeWarning}`}>Tốt</span>
+                        : <span className={`${styles.badge} ${styles.badgeDanger}`}>Kém</span>
+                      }
+                    </td>
+                    
+                    {/* Hao phí */}
+                    <td className={day.hao_phi_moc?.percentage > 2 ? styles.danger : styles.good}>
+                      {day.hao_phi_moc?.percentage?.toFixed(2) || '-'}
+                    </td>
+                    <td className={day.hao_phi_lo?.percentage > 3 ? styles.danger : styles.good}>
+                      {day.hao_phi_lo?.percentage?.toFixed(2) || '-'}
+                    </td>
+                    <td className={day.hao_phi_truoc_mai?.percentage > 2 ? styles.danger : styles.good}>
+                      {day.hao_phi_truoc_mai?.percentage?.toFixed(2) || '-'}
+                    </td>
+                    <td className={day.hao_phi_hoan_thien?.percentage > 2 ? styles.danger : styles.good}>
+                      {day.hao_phi_hoan_thien?.percentage?.toFixed(2) || '-'}
+                    </td>
+                    <td className={day.ty_le_hao_phi_tong > 9 ? styles.danger : day.ty_le_hao_phi_tong > 7 ? styles.warning : styles.good}>
+                      <strong>{day.ty_le_hao_phi_tong?.toFixed(2) || '-'}</strong>
+                    </td>
+                    
+                    {/* Sản lượng */}
+                    <td><strong>{day.san_luong_thuc_te?.toLocaleString() || '-'}</strong></td>
+                    <td className={styles.mutedText}>{day.san_luong_khoan?.toLocaleString() || '-'}</td>
+                    
+                    {/* Đạt khoán */}
+                    <td className={ty_le_dat_khoan >= 100 ? styles.good : styles.warning}>
+                      <strong>{ty_le_dat_khoan.toFixed(1)}%</strong>
+                    </td>
+                    <td>
+                      {ty_le_dat_khoan >= 110 
+                        ? <span className={`${styles.badge} ${styles.badgeGood}`}>Vượt khoán</span>
+                        : ty_le_dat_khoan >= 100
+                        ? <span className={`${styles.badge} ${styles.badgeGood}`}>Đạt</span>
+                        : <span className={`${styles.badge} ${styles.badgeDanger}`}>Chưa đạt</span>
+                      }
+                    </td>
+                    
+                    {/* Trạng thái tổng thể */}
+                    <td>
+                      {day.hieu_suat_san_xuat >= 90 && day.ty_le_hao_phi_tong <= 7 
+                        ? <span className={`${styles.statusBadge} ${styles.statusGood}`}>✓ Tốt</span>
+                        : day.hieu_suat_san_xuat < 85 || day.ty_le_hao_phi_tong > 9
+                        ? <span className={`${styles.statusBadge} ${styles.statusDanger}`}>✗ Kém</span>
+                        : <span className={`${styles.statusBadge} ${styles.statusWarning}`}>! TB</span>
+                      }
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr className={styles.totalRow}>
+                <td className={styles.stickyCol}><strong>Trung bình / Tổng</strong></td>
+                
+                {/* Hiệu suất TB */}
+                <td colSpan={2}>
+                  <strong>
+                    {(dailyData.reduce((sum: number, d: any) => sum + (d.hieu_suat_san_xuat || 0), 0) / dailyData.length).toFixed(1)}%
+                  </strong>
+                </td>
+                
+                {/* Hao phí TB */}
+                <td>
+                  {(dailyData.reduce((sum: number, d: any) => sum + (d.hao_phi_moc?.percentage || 0), 0) / dailyData.length).toFixed(2)}
+                </td>
+                <td>
+                  {(dailyData.reduce((sum: number, d: any) => sum + (d.hao_phi_lo?.percentage || 0), 0) / dailyData.length).toFixed(2)}
+                </td>
+                <td>
+                  {(dailyData.reduce((sum: number, d: any) => sum + (d.hao_phi_truoc_mai?.percentage || 0), 0) / dailyData.length).toFixed(2)}
+                </td>
+                <td>
+                  {(dailyData.reduce((sum: number, d: any) => sum + (d.hao_phi_hoan_thien?.percentage || 0), 0) / dailyData.length).toFixed(2)}
+                </td>
+                <td>
+                  <strong>{(dailyData.reduce((sum: number, d: any) => sum + (d.ty_le_hao_phi_tong || 0), 0) / dailyData.length).toFixed(2)}</strong>
+                </td>
+                
+                {/* Sản lượng tổng */}
+                <td>
+                  <strong>{dailyData.reduce((sum: number, d: any) => sum + (d.san_luong_thuc_te || 0), 0).toLocaleString()}</strong>
+                </td>
+                <td>
+                  {dailyData.reduce((sum: number, d: any) => sum + (d.san_luong_khoan || 0), 0).toLocaleString()}
+                </td>
+                
+                {/* Đạt khoán TB */}
+                <td colSpan={2}>
+                  <strong>
+                    {(dailyData.reduce((sum: number, d: any) => {
+                      const ty_le = d.san_luong_khoan ? ((d.san_luong_thuc_te / d.san_luong_khoan) * 100) : 0;
+                      return sum + ty_le;
+                    }, 0) / dailyData.length).toFixed(1)}%
+                  </strong>
+                </td>
+                
+                <td>-</td>
+              </tr>
+            </tfoot>
+          </table>
         </div>
       </div>
     );
-  }
+  };
 
-  return (
-    <div className={styles.container}>
-      <header className={styles.header}>
-        <div className={styles.headerContent}>
-          <div className={styles.headerText}>
-            <h1>📊 Phân Tích Sản Xuất & Hao Phí</h1>
-            <p>Theo dõi hiệu suất và hao phí chi tiết theo từng công đoạn</p>
-          </div>
-          <div className={styles.headerStats}>
-            <div className={styles.statBadge}>
-              <span className={styles.statLabel}>Dây chuyền</span>
-              <span className={styles.statValue}>{selectedLine}</span>
-            </div>
-            <div className={styles.statBadge}>
-              <span className={styles.statLabel}>Khoảng thời gian</span>
-              <span className={styles.statValue}>
-                {datePreset === 'today' ? 'Hôm nay' : 
-                 datePreset === '7days' ? '7 ngày' : 
-                 datePreset === '30days' ? '30 ngày' : 'Tùy chỉnh'}
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
+  const renderTabContent = () => {
+    if (!summary) return null;
 
-      {/* Filters */}
-      <div className={styles.filtersCard}>
-        <div className={styles.filtersHeader}>
-          <h3>🔍 Bộ Lọc</h3>
-        </div>
-        
-        <div className={styles.filtersBody}>
-          {/* Date Presets */}
-          <div className={styles.datePresets}>
-            <button 
-              className={`${styles.presetBtn} ${datePreset === 'today' ? styles.active : ''}`}
-              onClick={() => handleDatePresetChange('today')}
-            >
-              📅 Hôm nay
-            </button>
-            <button 
-              className={`${styles.presetBtn} ${datePreset === '7days' ? styles.active : ''}`}
-              onClick={() => handleDatePresetChange('7days')}
-            >
-              📆 7 ngày
-            </button>
-            <button 
-              className={`${styles.presetBtn} ${datePreset === '30days' ? styles.active : ''}`}
-              onClick={() => handleDatePresetChange('30days')}
-            >
-              📅 30 ngày
-            </button>
-            <button 
-              className={`${styles.presetBtn} ${datePreset === 'custom' ? styles.active : ''}`}
-              onClick={() => setDatePreset('custom')}
-            >
-              ⚙️ Tùy chỉnh
-            </button>
-          </div>
+    // Show table view for multi-day range
+    const start = new Date(dateRange.startDate);
+    const end = new Date(dateRange.endDate);
+    const daysDiff = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    
+    console.log('Render check:', {
+      daysDiff,
+      dailyDataLength: dailyData?.length || 0,
+      viewMode,
+      dateRange,
+      dailyData
+    });
+    
+    
+    if (daysDiff > 0 && dailyData && dailyData.length > 0) {
+      console.log('Rendering table view');
+      return renderDailyTable();
+    }
 
-          {/* Filter Controls */}
-          <div className={styles.filterControls}>
-            <div className={styles.filterGroup}>
-              <label>🏭 Dây chuyền</label>
-              <select value={selectedLine} onChange={(e) => setSelectedLine(Number(e.target.value))}>
-                <option value={1}>Dây chuyền 1</option>
-                <option value={2}>Dây chuyền 2</option>
-                <option value={6}>Dây chuyền 6</option>
-              </select>
-            </div>
-            
-            <div className={styles.filterGroup}>
-              <label>⏰ Ca làm việc</label>
-              <select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)}>
-                <option value="">Tất cả các ca</option>
-                <option value="A">Ca A (Sáng)</option>
-                <option value="B">Ca B (Chiều)</option>
-                <option value="C">Ca C (Đêm)</option>
-              </select>
-            </div>
-
-            {datePreset === 'custom' && (
-              <>
-                <div className={styles.filterGroup}>
-                  <label>📅 Từ ngày</label>
-                  <input
-                    type="date"
-                    value={dateRange.startDate}
-                    onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-                  />
+    console.log('Rendering single day view');
+    // Single day view
+    switch (activeTab) {
+      case 'overview':
+        return (
+          <>
+            {/* Quick Stats */}
+            <div className={styles.quickStats}>
+              <div className={styles.statCard}>
+                <div className={styles.statIcon}>📈</div>
+                <div className={styles.statContent}>
+                  <div className={styles.statLabel}>Hiệu suất</div>
+                  <div className={styles.statValue}>{summary.hieu_suat_san_xuat.toFixed(1)}%</div>
+                  <div className={`${styles.statTrend} ${summary.hieu_suat_san_xuat >= 90 ? styles.positive : styles.negative}`}>
+                    {summary.hieu_suat_san_xuat >= 90 ? '↗' : '↘'} {summary.hieu_suat_san_xuat >= 90 ? 'Tốt' : 'Cần cải thiện'}
+                  </div>
                 </div>
+              </div>
 
-                <div className={styles.filterGroup}>
-                  <label>📅 Đến ngày</label>
-                  <input
-                    type="date"
-                    value={dateRange.endDate}
-                    onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-                  />
+              <div className={styles.statCard}>
+                <div className={styles.statIcon}>⚠️</div>
+                <div className={styles.statContent}>
+                  <div className={styles.statLabel}>Hao phí</div>
+                  <div className={styles.statValue}>{summary.ty_le_hao_phi_tong.toFixed(1)}%</div>
+                  <div className={`${styles.statTrend} ${summary.ty_le_hao_phi_tong <= 7 ? styles.positive : styles.negative}`}>
+                    {summary.ty_le_hao_phi_tong <= 7 ? '✓' : '✗'} {summary.ty_le_hao_phi_tong <= 7 ? 'Trong ngưỡng' : 'Vượt ngưỡng'}
+                  </div>
                 </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+              </div>
 
-      {error && (
-        <div className={styles.errorMessage}>
-          <span>⚠️</span>
-          <p>{error}</p>
-        </div>
-      )}
-
-      {/* KPI Cards */}
-      {summary && (
-        <>
-          <div className={styles.kpiSection}>
-            <h2>Chỉ Số Hiệu Suất Chính (KPI)</h2>
-            <div className={styles.kpiGrid}>
-              <MetricCard
-                title="Tỷ Lệ Hao Phí Tổng"
-                value={`${summary.ty_le_hao_phi_tong.toFixed(2)}%`}
-                unit="%"
-                status={summary.ty_le_hao_phi_tong > 9 ? 'danger' : summary.ty_le_hao_phi_tong > 7 ? 'warning' : 'good'}
-              />
-              <MetricCard
-                title="Hiệu Suất Sản Xuất"
-                value={`${summary.hieu_suat_san_xuat.toFixed(2)}%`}
-                unit="%"
-                status={summary.hieu_suat_san_xuat < 85 ? 'danger' : summary.hieu_suat_san_xuat < 90 ? 'warning' : 'good'}
-              />
               {quotaComparison && (
                 <>
-                  <MetricCard
-                    title="Tỷ Lệ Đạt Khoán"
-                    value={`${quotaComparison.ty_le_vuot_khoan.toFixed(2)}%`}
-                    unit="%"
-                    status={quotaComparison.performance_status === 'below' ? 'danger' : quotaComparison.performance_status === 'exceeding' ? 'good' : 'warning'}
-                  />
-                  <MetricCard
-                    title="Sản Lượng Thực Tế"
-                    value={`${quotaComparison.san_luong_thuc_te.toLocaleString()}`}
-                    subtitle={`Khoán: ${quotaComparison.san_luong_khoan.toLocaleString()}`}
-                    unit="m²"
-                    status={quotaComparison.performance_status === 'below' ? 'danger' : 'good'}
-                  />
+                  <div className={styles.statCard}>
+                    <div className={styles.statIcon}>🎯</div>
+                    <div className={styles.statContent}>
+                      <div className={styles.statLabel}>Đạt khoán</div>
+                      <div className={styles.statValue}>{quotaComparison.ty_le_vuot_khoan.toFixed(1)}%</div>
+                      <div className={`${styles.statTrend} ${quotaComparison.performance_status !== 'below' ? styles.positive : styles.negative}`}>
+                        {quotaComparison.performance_status === 'exceeding' ? '⭐' : quotaComparison.performance_status === 'meeting' ? '✓' : '↓'}
+                        {' '}
+                        {quotaComparison.performance_status === 'exceeding' ? 'Vượt khoán' : quotaComparison.performance_status === 'meeting' ? 'Đạt khoán' : 'Chưa đạt'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.statCard}>
+                    <div className={styles.statIcon}>📦</div>
+                    <div className={styles.statContent}>
+                      <div className={styles.statLabel}>Sản lượng</div>
+                      <div className={styles.statValue}>{(quotaComparison.san_luong_thuc_te / 1000).toFixed(1)}K</div>
+                      <div className={styles.statInfo}>
+                        Khoán: {(quotaComparison.san_luong_khoan / 1000).toFixed(1)}K m²
+                      </div>
+                    </div>
+                  </div>
                 </>
               )}
             </div>
-          </div>
 
-          {/* Waste Details */}
-          <div className={styles.wasteSection}>
-            <h2>Chi Tiết Hao Phí Theo Công Đoạn</h2>
+            {/* Alerts Section */}
+            {summary.alerts && summary.alerts.length > 0 && (
+              <div className={styles.alertsCompact}>
+                <h3>⚠️ Cảnh báo ({summary.alerts.length})</h3>
+                <div className={styles.alertsGrid}>
+                  {summary.alerts.slice(0, 3).map((alert, index) => (
+                    <div key={index} className={styles.alertCard}>
+                      {alert}
+                    </div>
+                  ))}
+                  {summary.alerts.length > 3 && (
+                    <div className={styles.alertMore}>
+                      +{summary.alerts.length - 3} cảnh báo khác
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Production Flow */}
+            {productionFlow && (
+              <div className={styles.flowSection}>
+                <h3>🔄 Dòng chảy sản xuất</h3>
+                
+                {/* Main Flow Stages */}
+                <div className={styles.flowVertical}>
+                  {/* 1. Sau máy ép */}
+                  <div className={styles.flowStage}>
+                    <div className={styles.processStage}>
+                      <div className={styles.stageNumber}>1</div>
+                      <div className={styles.stageInfo}>
+                        <div className={styles.stageName}>SAU MÁY ÉP</div>
+                        <div className={styles.stageQuantity}>
+                          <span className={styles.quantityValue}>{productionFlow.SL_Ep.toLocaleString()}</span>
+                          <span className={styles.quantityUnit}>m²</span>
+                        </div>
+                        <div className={styles.stageEfficiency}>
+                          Hiệu suất: <strong>100%</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Hao phí mộc */}
+                    <div className={styles.verticalArrow}>
+                      <div className={styles.arrowLine}></div>
+                      <div className={styles.arrowIcon}>↓</div>
+                      <div className={`${styles.lossBox} ${productionFlow.TyLe_HP_Moc > 2 ? styles.warning : styles.good}`}>
+                        <span className={styles.lossLabel}>⚠️ HAO PHÍ MỘC</span>
+                        <span className={styles.lossAmount}>
+                          {productionFlow.HP_Moc.toLocaleString()} m²
+                        </span>
+                        <span className={`${styles.lossPercent} ${productionFlow.TyLe_HP_Moc > 2 ? styles.danger : ''}`}>
+                          {productionFlow.TyLe_HP_Moc.toFixed(2)}% {productionFlow.TyLe_HP_Moc > 2 ? '(⚠️ Vượt 2%)' : '(✓ OK)'}
+                        </span>
+                        <div className={styles.formula}>
+                          <span className={styles.formulaLabel}>Công thức:</span>
+                          <span className={styles.formulaText}>
+                            HP_Mộc = SL_Ep - SL_TruocLo
+                          </span>
+                          <span className={styles.formulaText}>
+                            = {productionFlow.SL_Ep.toLocaleString()} - {productionFlow.SL_TruocLo.toLocaleString()} = {productionFlow.HP_Moc.toLocaleString()} m²
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Trước lò nung */}
+                  <div className={styles.flowStage}>
+                    <div className={styles.processStage}>
+                      <div className={styles.stageNumber}>2</div>
+                      <div className={styles.stageInfo}>
+                        <div className={styles.stageName}>TRƯỚC LÒ NUNG</div>
+                        <div className={styles.stageQuantity}>
+                          <span className={styles.quantityValue}>{productionFlow.SL_TruocLo.toLocaleString()}</span>
+                          <span className={styles.quantityUnit}>m²</span>
+                        </div>
+                        <div className={styles.stageEfficiency}>
+                          Hiệu suất: <strong>{productionFlow.HieuSuat_Moc.toFixed(1)}%</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Hao phí lò */}
+                    <div className={styles.verticalArrow}>
+                      <div className={styles.arrowLine}></div>
+                      <div className={styles.arrowIcon}>↓</div>
+                      <div className={`${styles.lossBox} ${productionFlow.TyLe_HP_Lo > 3 ? styles.warning : styles.good}`}>
+                        <span className={styles.lossLabel}>🔥 HAO PHÍ LÒ</span>
+                        <span className={styles.lossAmount}>
+                          {productionFlow.HP_Lo.toLocaleString()} m²
+                        </span>
+                        <span className={`${styles.lossPercent} ${productionFlow.TyLe_HP_Lo > 3 ? styles.danger : ''}`}>
+                          {productionFlow.TyLe_HP_Lo.toFixed(2)}% {productionFlow.TyLe_HP_Lo > 3 ? '(⚠️ Vượt 3%)' : '(✓ OK)'}
+                        </span>
+                        <div className={styles.formula}>
+                          <span className={styles.formulaLabel}>Công thức:</span>
+                          <span className={styles.formulaText}>
+                            HP_Lò = SL_TruocLo - SL_SauLo
+                          </span>
+                          <span className={styles.formulaText}>
+                            = {productionFlow.SL_TruocLo.toLocaleString()} - {productionFlow.SL_SauLo.toLocaleString()} = {productionFlow.HP_Lo.toLocaleString()} m²
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3. Sau lò nung */}
+                  <div className={styles.flowStage}>
+                    <div className={styles.processStage}>
+                      <div className={styles.stageNumber}>3</div>
+                      <div className={styles.stageInfo}>
+                        <div className={styles.stageName}>SAU LÒ NUNG</div>
+                        <div className={styles.stageQuantity}>
+                          <span className={styles.quantityValue}>{productionFlow.SL_SauLo.toLocaleString()}</span>
+                          <span className={styles.quantityUnit}>m²</span>
+                        </div>
+                        <div className={styles.stageEfficiency}>
+                          Hiệu suất: <strong>{productionFlow.HieuSuat_Lo.toFixed(1)}%</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Hao phí trước mài */}
+                    <div className={styles.verticalArrow}>
+                      <div className={styles.arrowLine}></div>
+                      <div className={styles.arrowIcon}>↓</div>
+                      <div className={`${styles.lossBox} ${productionFlow.TyLe_HP_TM > 2 ? styles.warning : styles.good}`}>
+                        <span className={styles.lossLabel}>⚙️ HAO PHÍ TRƯỚC MÀI</span>
+                        <span className={styles.lossAmount}>
+                          {productionFlow.HP_TM.toLocaleString()} m²
+                        </span>
+                        <span className={`${styles.lossPercent} ${productionFlow.TyLe_HP_TM > 2 ? styles.danger : ''}`}>
+                          {productionFlow.TyLe_HP_TM.toFixed(2)}% {productionFlow.TyLe_HP_TM > 2 ? '(⚠️ Vượt 2%)' : '(✓ OK)'}
+                        </span>
+                        <div className={styles.formula}>
+                          <span className={styles.formulaLabel}>Công thức:</span>
+                          <span className={styles.formulaText}>
+                            HP_TM = SL_SauLo - SL_TruocMai
+                          </span>
+                          <span className={styles.formulaText}>
+                            = {productionFlow.SL_SauLo.toLocaleString()} - {productionFlow.SL_TruocMai.toLocaleString()} = {productionFlow.HP_TM.toLocaleString()} m²
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 4. Trước mài mặt */}
+                  <div className={styles.flowStage}>
+                    <div className={styles.processStage}>
+                      <div className={styles.stageNumber}>4</div>
+                      <div className={styles.stageInfo}>
+                        <div className={styles.stageName}>TRƯỚC MÀI MẶT</div>
+                        <div className={styles.stageQuantity}>
+                          <span className={styles.quantityValue}>{productionFlow.SL_TruocMai.toLocaleString()}</span>
+                          <span className={styles.quantityUnit}>m²</span>
+                        </div>
+                        <div className={styles.stageEfficiency}>
+                          Hiệu suất: <strong>{productionFlow.HieuSuat_TruocMai.toFixed(1)}%</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Hao phí hoàn thiện */}
+                    <div className={styles.verticalArrow}>
+                      <div className={styles.arrowLine}></div>
+                      <div className={styles.arrowIcon}>↓</div>
+                      <div className={`${styles.lossBox} ${productionFlow.TyLe_HP_HT > 2 ? styles.warning : styles.good}`}>
+                        <span className={styles.lossLabel}>✨ HAO PHÍ HOÀN THIỆN</span>
+                        <span className={styles.lossAmount}>
+                          {productionFlow.HP_HT.toLocaleString()} m²
+                        </span>
+                        <span className={`${styles.lossPercent} ${productionFlow.TyLe_HP_HT > 2 ? styles.danger : ''}`}>
+                          {productionFlow.TyLe_HP_HT.toFixed(2)}% {productionFlow.TyLe_HP_HT > 2 ? '(⚠️ Vượt 2%)' : '(✓ OK)'}
+                        </span>
+                        <div className={styles.formula}>
+                          <span className={styles.formulaLabel}>Công thức:</span>
+                          <span className={styles.formulaText}>
+                            HP_HT = SL_TruocMai - SL_TruocDongHop
+                          </span>
+                          <span className={styles.formulaText}>
+                            = {productionFlow.SL_TruocMai.toLocaleString()} - {productionFlow.SL_TruocDongHop.toLocaleString()} = {productionFlow.HP_HT.toLocaleString()} m²
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 5. Thành phẩm (Trước đóng hộp) */}
+                  <div className={styles.flowStage}>
+                    <div className={`${styles.processStage} ${styles.finalStage}`}>
+                      <div className={styles.stageNumber}>5</div>
+                      <div className={styles.stageInfo}>
+                        <div className={styles.stageName}>THÀNH PHẨM</div>
+                        <div className={styles.stageQuantity}>
+                          <span className={styles.quantityValue}>{productionFlow.SL_TruocDongHop.toLocaleString()}</span>
+                          <span className={styles.quantityUnit}>m²</span>
+                        </div>
+                        <div className={styles.stageEfficiency}>
+                          Hiệu suất: <strong>{productionFlow.HieuSuat_ThanhPham.toFixed(1)}%</strong>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary Cards */}
+                <div className={styles.flowSummaryCards}>
+                  <div className={styles.summaryCard}>
+                    <div className={styles.cardIcon}>📥</div>
+                    <div className={styles.cardContent}>
+                      <div className={styles.cardLabel}>Đầu vào (Sau máy ép)</div>
+                      <div className={styles.cardValue}>
+                        {productionFlow.SL_Ep.toLocaleString()}
+                        <span className={styles.cardUnit}>m²</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={styles.summaryCard}>
+                    <div className={styles.cardIcon}>📤</div>
+                    <div className={styles.cardContent}>
+                      <div className={styles.cardLabel}>Đầu ra (Thành phẩm)</div>
+                      <div className={styles.cardValue}>
+                        {productionFlow.SL_TruocDongHop.toLocaleString()}
+                        <span className={styles.cardUnit}>m²</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`${styles.summaryCard} ${productionFlow.TyLe_TongHaoPhi > 9 ? styles.danger : styles.warning}`}>
+                    <div className={styles.cardIcon}>⚠️</div>
+                    <div className={styles.cardContent}>
+                      <div className={styles.cardLabel}>Tổng hao phí</div>
+                      <div className={styles.cardValue}>
+                        {productionFlow.TongHaoPhi.toLocaleString()}
+                        <span className={styles.cardUnit}>m² ({productionFlow.TyLe_TongHaoPhi.toFixed(2)}%)</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={`${styles.summaryCard} ${productionFlow.HieuSuat_ThanhPham >= 90 ? styles.success : styles.warning}`}>
+                    <div className={styles.cardIcon}>✅</div>
+                    <div className={styles.cardContent}>
+                      <div className={styles.cardLabel}>Hiệu suất tổng thể</div>
+                      <div className={styles.cardValue}>
+                        {productionFlow.HieuSuat_ThanhPham.toFixed(1)}
+                        <span className={styles.cardUnit}>%</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        );
+
+      case 'waste':
+        return (
+          <div className={styles.wasteAnalysis}>
+            <h3>📊 Phân tích hao phí chi tiết</h3>
             <div className={styles.wasteGrid}>
               <AnalysisMetricCard
                 title="Hao Phí Mộc"
@@ -375,86 +871,260 @@ export default function AnalyticsPage() {
               />
             </div>
           </div>
+        );
 
-          {/* Alerts */}
-          {summary.alerts && summary.alerts.length > 0 && (
-            <div className={styles.alertsSection}>
-              <h2>⚠️ Cảnh Báo</h2>
-              <div className={styles.alertsList}>
-                {summary.alerts.map((alert, index) => (
-                  <div key={index} className={styles.alertItem}>
-                    {alert}
-                  </div>
-                ))}
-              </div>
+      case 'efficiency':
+        return (
+          <div className={styles.efficiencyAnalysis}>
+            <h3>⚡ Hiệu suất công đoạn</h3>
+            <div className={styles.kpiGrid}>
+              <MetricCard
+                title="Hiệu suất tổng thể"
+                value={`${summary.hieu_suat_san_xuat.toFixed(2)}%`}
+                unit="%"
+                status={summary.hieu_suat_san_xuat < 85 ? 'danger' : summary.hieu_suat_san_xuat < 90 ? 'warning' : 'good'}
+              />
+              <MetricCard
+                title="Tỷ lệ hao phí"
+                value={`${summary.ty_le_hao_phi_tong.toFixed(2)}%`}
+                unit="%"
+                status={summary.ty_le_hao_phi_tong > 9 ? 'danger' : summary.ty_le_hao_phi_tong > 7 ? 'warning' : 'good'}
+              />
             </div>
-          )}
+          </div>
+        );
 
-          {/* Sankey Diagram Placeholder */}
-          {sankeyData && (
-            <div className={styles.sankeySection}>
-              <h2>Biểu Đồ Dòng Chảy Sản Xuất</h2>
-              <div className={styles.sankeyPlaceholder}>
-                <p>Sankey diagram sẽ được hiển thị tại đây</p>
-                <p className={styles.sankeyInfo}>
-                  Nodes: {sankeyData.nodes.map(n => n.name).join(', ')}
-                </p>
-                <div className={styles.sankeyLinks}>
-                  {sankeyData.links.map((link, idx) => (
-                    <div key={idx} className={styles.linkItem}>
-                      {sankeyData.nodes[link.source].name} → {sankeyData.nodes[link.target].name}: {link.value.toLocaleString()}
+      case 'quota':
+        return (
+          <div className={styles.quotaAnalysis}>
+            <h3>🎯 So sánh khoán sản xuất</h3>
+            {quotaComparison && (
+              <div className={styles.quotaComparison}>
+                <div className={styles.quotaCard}>
+                  <div className={styles.quotaLabel}>Khoán</div>
+                  <div className={styles.quotaValue}>{quotaComparison.san_luong_khoan.toLocaleString()} m²</div>
+                </div>
+                <div className={styles.quotaCard}>
+                  <div className={styles.quotaLabel}>Thực tế</div>
+                  <div className={styles.quotaValue}>{quotaComparison.san_luong_thuc_te.toLocaleString()} m²</div>
+                </div>
+                <div className={styles.quotaCard}>
+                  <div className={styles.quotaLabel}>Chênh lệch</div>
+                  <div className={`${styles.quotaValue} ${quotaComparison.chenh_lech >= 0 ? styles.positive : styles.negative}`}>
+                    {quotaComparison.chenh_lech >= 0 ? '+' : ''}{quotaComparison.chenh_lech.toLocaleString()} m²
+                  </div>
+                </div>
+                <div className={styles.quotaCard}>
+                  <div className={styles.quotaLabel}>Tỷ lệ đạt</div>
+                  <div className={styles.quotaValue}>{quotaComparison.ty_le_vuot_khoan.toFixed(1)}%</div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+
+      case 'trends':
+        return (
+          <div className={styles.trendsAnalysis}>
+            <h3>📈 Xu hướng & So sánh ca</h3>
+            
+            {summary.shift_comparison && summary.shift_comparison.length > 0 && (
+              <div className={styles.shiftComparison}>
+                <h4>So sánh theo ca làm việc</h4>
+                <div className={styles.shiftGrid}>
+                  {summary.shift_comparison.map((shift, idx) => (
+                    <div key={idx} className={styles.shiftCard}>
+                      <div className={styles.shiftHeader}>Ca {shift.shift}</div>
+                      <div className={styles.shiftMetrics}>
+                        <div className={styles.shiftMetric}>
+                          <span className={styles.metricLabel}>Sản lượng</span>
+                          <span className={styles.metricValue}>{shift.san_luong.toLocaleString()} m²</span>
+                        </div>
+                        <div className={styles.shiftMetric}>
+                          <span className={styles.metricLabel}>Hiệu suất</span>
+                          <span className={styles.metricValue}>{shift.hieu_suat.toFixed(1)}%</span>
+                        </div>
+                        <div className={styles.shiftMetric}>
+                          <span className={styles.metricLabel}>Hao phí</span>
+                          <span className={`${styles.metricValue} ${shift.ty_le_hao_phi > 9 ? styles.danger : styles.good}`}>
+                            {shift.ty_le_hao_phi.toFixed(1)}%
+                          </span>
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Shift Comparison */}
-          {summary.shift_comparison && summary.shift_comparison.length > 0 && (
-            <div className={styles.shiftSection}>
-              <h2>So Sánh Theo Ca</h2>
-              <div className={styles.shiftTable}>
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Ca</th>
-                      <th>Sản Lượng (m²)</th>
-                      <th>Hiệu Suất (%)</th>
-                      <th>Tỷ Lệ Hao Phí (%)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {summary.shift_comparison.map((shift, idx) => (
-                      <tr key={idx}>
-                        <td><strong>{shift.shift}</strong></td>
-                        <td>{shift.san_luong.toLocaleString()}</td>
-                        <td>{shift.hieu_suat.toFixed(2)}%</td>
-                        <td style={{ color: shift.ty_le_hao_phi > 9 ? '#f44336' : '#4caf50' }}>
-                          {shift.ty_le_hao_phi.toFixed(2)}%
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Trend Chart Placeholder */}
-          <div className={styles.trendSection}>
-            <h2>Xu Hướng Theo Thời Gian</h2>
-            <div className={styles.trendPlaceholder}>
-              <p>Biểu đồ line chart sẽ hiển thị xu hướng hao phí và hiệu suất theo thời gian</p>
-              {summary.trend_data && summary.trend_data.length > 0 && (
-                <div className={styles.trendData}>
-                  <p>Có {summary.trend_data.length} điểm dữ liệu</p>
+            {summary.trend_data && summary.trend_data.length > 0 && (
+              <div className={styles.trendData}>
+                <h4>Dữ liệu xu hướng</h4>
+                <p>Có {summary.trend_data.length} điểm dữ liệu để phân tích</p>
+                <div className={styles.trendPlaceholder}>
+                  Biểu đồ line chart sẽ hiển thị tại đây
                 </div>
+              </div>
+            )}
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className={styles.container}>
+      {/* Sticky Header with Filters */}
+      <div className={styles.stickyHeader}>
+        <div className={styles.headerTop}>
+          <div className={styles.headerTitle}>
+            <h1>📊 Phân Tích Sản Xuất</h1>
+            <div className={styles.headerMeta}>
+              <span>Dây chuyền {selectedLine}</span>
+              <span>•</span>
+              <span>
+                {viewMode === 'single' 
+                  ? new Date(dateRange.startDate).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
+                  : `${new Date(dateRange.startDate).toLocaleDateString('vi-VN')} - ${new Date(dateRange.endDate).toLocaleDateString('vi-VN')}`
+                }
+              </span>
+              {viewMode === 'range' && (
+                <>
+                  <span>•</span>
+                  <span className={styles.dayCount}>{dailyData.length} ngày</span>
+                </>
               )}
             </div>
           </div>
-        </>
-      )}
+
+          {/* Compact Filters */}
+          <div className={styles.compactFilters}>
+            <select value={selectedLine} onChange={(e) => setSelectedLine(Number(e.target.value))} className={styles.filterSelect}>
+              <option value={1}>Dây chuyền 1</option>
+              <option value={2}>Dây chuyền 2</option>
+              <option value={6}>Dây chuyền 6</option>
+            </select>
+
+            <select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)} className={styles.filterSelect}>
+              <option value="">Tất cả ca</option>
+              <option value="A">Ca A</option>
+              <option value="B">Ca B</option>
+              <option value="C">Ca C</option>
+            </select>
+
+            {/* Date Range Picker - Always visible */}
+            <div className={styles.dateRangePicker}>
+              <input
+                type="date"
+                value={dateRange.startDate}
+                onChange={(e) => {
+                  const newStartDate = e.target.value;
+                  setDateRange({ ...dateRange, startDate: newStartDate });
+                  setDatePreset('custom');
+                  setViewMode(newStartDate === dateRange.endDate ? 'single' : 'range');
+                }}
+                className={styles.dateInput}
+              />
+              <span className={styles.dateRangeSeparator}>→</span>
+              <input
+                type="date"
+                value={dateRange.endDate}
+                onChange={(e) => {
+                  const newEndDate = e.target.value;
+                  setDateRange({ ...dateRange, endDate: newEndDate });
+                  setDatePreset('custom');
+                  setViewMode(dateRange.startDate === newEndDate ? 'single' : 'range');
+                }}
+                className={styles.dateInput}
+              />
+            </div>
+
+            {/* Quick Preset Buttons */}
+            <div className={styles.dateQuickPicks}>
+              <button 
+                className={`${styles.dateBtn} ${datePreset === '7days' ? styles.active : ''}`}
+                onClick={() => handleDatePresetChange('7days')}
+              >
+                📊 7 ngày
+              </button>
+              <button 
+                className={`${styles.dateBtn} ${datePreset === '14days' ? styles.active : ''}`}
+                onClick={() => handleDatePresetChange('14days')}
+              >
+                📊 14 ngày
+              </button>
+              <button 
+                className={`${styles.dateBtn} ${datePreset === '30days' ? styles.active : ''}`}
+                onClick={() => handleDatePresetChange('30days')}
+              >
+                📊 30 ngày
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Navigation - Only show for single day view */}
+        {viewMode === 'single' && (
+          <div className={styles.tabNav}>
+            <button 
+              className={`${styles.tab} ${activeTab === 'overview' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('overview')}
+            >
+              <span className={styles.tabIcon}>📊</span>
+              Tổng quan
+            </button>
+            <button 
+              className={`${styles.tab} ${activeTab === 'waste' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('waste')}
+            >
+              <span className={styles.tabIcon}>⚠️</span>
+              Hao phí
+            </button>
+            <button 
+              className={`${styles.tab} ${activeTab === 'efficiency' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('efficiency')}
+            >
+              <span className={styles.tabIcon}>⚡</span>
+              Hiệu suất
+            </button>
+            <button 
+              className={`${styles.tab} ${activeTab === 'quota' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('quota')}
+            >
+              <span className={styles.tabIcon}>🎯</span>
+              Khoán
+            </button>
+            <button 
+              className={`${styles.tab} ${activeTab === 'trends' ? styles.activeTab : ''}`}
+              onClick={() => setActiveTab('trends')}
+            >
+              <span className={styles.tabIcon}>📈</span>
+              Xu hướng
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Main Content Area */}
+      <div className={styles.mainContent}>
+        {error && (
+          <div className={styles.errorBanner}>
+            <span>⚠️</span>
+            <p>{error}</p>
+          </div>
+        )}
+
+        {loading ? (
+          <div className={styles.loadingWrapper}>
+            <div className={styles.spinner}></div>
+            <p>Đang tải dữ liệu...</p>
+          </div>
+        ) : (
+          renderTabContent()
+        )}
+      </div>
     </div>
   );
 }
