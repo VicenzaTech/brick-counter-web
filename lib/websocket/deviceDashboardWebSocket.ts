@@ -7,7 +7,7 @@ import { io, Socket } from 'socket.io-client';
 
 export interface WebSocketMessage {
   // Format mới từ NestJS
-  type?: 'device_update' | 'batch_device_update' | 'production_update' | 'connection_status' | 'error';
+  type?: 'initial_telemetry' | 'device_update' | 'batch_device_update' | 'production_update' | 'connection_status' | 'error';
   data?: any;
   timestamp?: string;
   deviceId?: string;
@@ -68,6 +68,16 @@ class DeviceDashboardWebSocket {
       // Event: Joined room confirmation
       this.socket.on('joined_room', (data: any) => {
         console.log('✅ Successfully joined room:', data);
+      });
+
+      // Event: Nhận initial telemetry data từ database
+      this.socket.on('initial_telemetry', (data: any) => {
+        console.log('📥 Received initial_telemetry from database:', data);
+        onMessage({
+          type: 'initial_telemetry',
+          data,
+          timestamp: new Date().toISOString(),
+        });
       });
 
       // Event: Nhận device update

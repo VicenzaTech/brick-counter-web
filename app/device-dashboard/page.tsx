@@ -31,10 +31,13 @@ export default function DeviceDashboardPage() {
   // WebSocket connection với NestJS backend
   const { devices, setDevices, isConnected } = useDeviceDashboardWebSocket(INITIAL_DEVICES, {
     enabled: true, // ✅ Bật WebSocket để kết nối với NestJS backend
-    // baseUrl sử dụng default: http://localhost:3000
+    baseUrl: 'http://localhost:5555', // NestJS Socket.IO server
   });
-  console.log('🌐 DeviceDashboardPage devices state:', devices);
+  
+  console.log('🌐 DeviceDashboardPage render');
+  console.log('📊 Devices state:', devices.map(d => ({ id: d.id, name: d.name, count: d.count })));
   console.log('🔌 WebSocket connected:', isConnected);
+  
   const [device1, setDevice1] = useState<string>('');
   const [device2, setDevice2] = useState<string>('');
   const [comparisonResult, setComparisonResult] = useState<any>(null);

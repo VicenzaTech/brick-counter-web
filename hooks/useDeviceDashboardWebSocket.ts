@@ -62,8 +62,29 @@ export function useDeviceDashboardWebSocket(
     console.log('🔵 Message type/event:', message.type, message.event);
     console.log('🔵 Message data:', message.data);
 
+    // Xử lý initial telemetry data từ database khi connect
+    if (message.type === 'initial_telemetry' && Array.isArray(message.data)) {
+      console.log('📥 Initial telemetry data received from database:', message.data);
+      
+      setDevices(prevDevices =>
+        prevDevices.map(device => {
+          const telemetry = message.data.find((t: any) => t.deviceId === device.id);
+          if (telemetry) {
+            console.log('✅ Loading initial data for:', device.id, 'count:', telemetry.count);
+            return {
+              ...device,
+              count: telemetry.count || 0,
+              lastUpdated: telemetry.timestamp 
+                ? new Date(telemetry.timestamp).toLocaleTimeString('vi-VN')
+                : device.lastUpdated,
+            };
+          }
+          return device;
+        })
+      );
+    }
     // Xử lý message từ NestJS Socket.IO backend
-    if (message.type === 'device_update' && message.data) {
+    else if (message.type === 'device_update' && message.data) {
       // Single device update từ NestJS
       const data = message.data;
       const deviceId = data.deviceId || data.device_id;
