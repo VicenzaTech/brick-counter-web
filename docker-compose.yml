@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: brick-counter-web
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      # Backend API URL (connect to backend service)
+      NEXT_PUBLIC_BACKEND_URL: http://localhost:5555
+      NEXT_PUBLIC_WS_URL: http://localhost:5555
+    ports:
+      - '3001:3001'
+    networks:
+      - brick-counter-network
+
+networks:
+  brick-counter-network:
+    external: true

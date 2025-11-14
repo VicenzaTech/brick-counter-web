@@ -1,0 +1,39 @@
+.metricCard {
+  background: white;
+  border-top: 4px solid;
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.metricCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.metricTitle {
+  font-size: 0.9rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.metricValue {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+  line-height: 1.2;
+}
+
+.metricUnit {
+  font-size: 1rem;
+  opacity: 0.8;
+  font-weight: 400;
+}
+
+.metricSubtitle {
+  font-size: 0.85rem;
+  color: #999;
+  margin-top: 0.5rem;
+}

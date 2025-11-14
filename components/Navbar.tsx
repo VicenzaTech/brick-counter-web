@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Factory, LayoutDashboard, Database, Activity, Menu, X } from 'lucide-react';
+import { Factory, LayoutDashboard, Database, Activity, Menu, X, TrendingUp } from 'lucide-react';
 import { useState } from 'react';
 import styles from './Navbar.module.css';
 
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/device-dashboard', label: 'Phân tích thiết bị', icon: Activity },
+  { href: '/analytics', label: 'Phân tích sản xuất', icon: TrendingUp },
   { href: '/data-center', label: 'Trung tâm dữ liệu', icon: Database },
 ];
 
