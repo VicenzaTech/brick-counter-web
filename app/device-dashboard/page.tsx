@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Cpu, ArrowLeftRight, TrendingUp, TrendingDown } from 'lucide-react';
+import { Cpu, ArrowLeftRight, TrendingUp, TrendingDown, RotateCcw } from 'lucide-react';
 import DeviceCard from '@/components/DeviceCard';
 import AnalysisMetricCard from '@/components/AnalysisMetricCard';
 import { useDeviceDashboardWebSocket } from '@/hooks/useDeviceDashboardWebSocket';
@@ -42,6 +42,8 @@ export default function DeviceDashboardPage() {
   const [device2, setDevice2] = useState<string>('');
   const [comparisonResult, setComparisonResult] = useState<any>(null);
   const [currentTime, setCurrentTime] = useState<string>('');
+  const [isResetting, setIsResetting] = useState(false);
+  const [resetMessage, setResetMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Update current time
   useEffect(() => {
@@ -134,6 +136,50 @@ export default function DeviceDashboardPage() {
     setComparisonResult(null);
   }, [device1, device2]);
 
+  // Reset all devices on production line 1
+  const handleResetLine = async () => {
+    if (!confirm('Bạn có chắc chắn muốn reset toàn bộ thiết bị của Dây chuyền 1?\n\nTất cả số đếm sẽ về 0.')) {
+      return;
+    }
+
+    setIsResetting(true);
+    setResetMessage(null);
+
+    try {
+      const response = await fetch('http://localhost:5555/mqtt/device-command/reset-line/1', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setResetMessage({
+          type: 'success',
+          text: `✅ ${result.message} - Lệnh ID: ${result.commandId.substring(0, 8)}...`
+        });
+
+        // Clear message after 5 seconds
+        setTimeout(() => setResetMessage(null), 5000);
+      } else {
+        setResetMessage({
+          type: 'error',
+          text: `❌ ${result.message}`
+        });
+      }
+    } catch (error) {
+      console.error('Reset error:', error);
+      setResetMessage({
+        type: 'error',
+        text: '❌ Lỗi kết nối đến server'
+      });
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
     <div className={styles.container}>
       {/* Header */}
@@ -158,13 +204,28 @@ export default function DeviceDashboardPage() {
         </div>
       </div>
 
-      {/* Section Header */}
+      {/* Section Header with Reset Button */}
       <div className={styles.sectionHeader}>
         <h2 className={styles.sectionTitle}>
           <Cpu size={24} />
           Dây chuyền 1
         </h2>
+        <button 
+          className={styles.resetButton}
+          onClick={handleResetLine}
+          disabled={isResetting}
+        >
+          <RotateCcw size={18} className={isResetting ? styles.spinning : ''} />
+          {isResetting ? 'Đang reset...' : 'Reset toàn bộ thiết bị'}
+        </button>
       </div>
+
+      {/* Reset Message */}
+      {resetMessage && (
+        <div className={`${styles.resetMessage} ${styles[resetMessage.type]}`}>
+          {resetMessage.text}
+        </div>
+      )}
 
       {/* Device Grid */}
       <div className={styles.deviceGrid}>
