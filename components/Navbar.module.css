@@ -95,53 +95,6 @@
   border-top: 8px solid white;
 }
 
-/* User Info */
-.userInfo {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.5rem 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 50px;
-  color: white;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.userInfo:hover {
-  background: rgba(255, 255, 255, 0.2);
-}
-
-.userAvatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: white;
-  color: #667eea;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.875rem;
-}
-
-.userDetails {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
-}
-
-.userName {
-  font-weight: 600;
-  font-size: 0.875rem;
-  line-height: 1;
-}
-
-.userRole {
-  font-size: 0.75rem;
-  opacity: 0.8;
-  line-height: 1;
-}
 
 /* Mobile Menu Button */
 .menuButton {

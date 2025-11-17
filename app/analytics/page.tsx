@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import styles from './page.module.css';
 import MetricCard from '@/components/MetricCard';
 import AnalysisMetricCard from '@/components/AnalysisMetricCard';
+import { apiFetch } from '@/lib/http/http';
 
 type DatePreset = 'today' | '7days' | '14days' | '30days' | 'custom';
 type ActiveTab = 'overview' | 'waste' | 'efficiency' | 'quota' | 'trends';
@@ -192,7 +193,7 @@ export default function AnalyticsPage() {
         // Fetch daily breakdown data using the new endpoint
         try {
           console.log(`Fetching daily breakdown: ${API_URL}/production-metrics/daily-breakdown?${queryParams}`);
-          const dailyRes = await fetch(`${API_URL}/production-metrics/daily-breakdown?${queryParams}`);
+          const dailyRes = await apiFetch(`${API_URL}/production-metrics/daily-breakdown?${queryParams}`);
           
           if (dailyRes.ok) {
             const dailyBreakdown = await dailyRes.json();
@@ -224,7 +225,7 @@ export default function AnalyticsPage() {
       }
 
       // Fetch summary for current selection
-      const summaryRes = await fetch(`${API_URL}/production-metrics/summary?${queryParams}`);
+      const summaryRes = await apiFetch(`${API_URL}/production-metrics/summary?${queryParams}`);
       if (summaryRes.ok) {
         const summaryData = await summaryRes.json();
         setSummary(summaryData);
@@ -233,7 +234,7 @@ export default function AnalyticsPage() {
       }
 
       // Fetch Sankey data
-      const sankeyRes = await fetch(`${API_URL}/production-metrics/sankey?${queryParams}`);
+      const sankeyRes = await apiFetch(`${API_URL}/production-metrics/sankey?${queryParams}`);
       if (sankeyRes.ok) {
         const sankeyDataRes = await sankeyRes.json();
         setSankeyData(sankeyDataRes);
@@ -280,7 +281,7 @@ export default function AnalyticsPage() {
       }
 
       // Fetch quota comparison
-      const quotaRes = await fetch(`${API_URL}/quota-targets/compare`, {
+      const quotaRes = await apiFetch(`${API_URL}/quota-targets/compare`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
