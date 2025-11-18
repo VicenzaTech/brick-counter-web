@@ -21,9 +21,9 @@ export default async function proxy(req: NextRequest) {
     if (
         isPublicRoute &&
         cookie &&
-        !req.nextUrl.pathname.startsWith('/dashboard')
+        !req.nextUrl.pathname.startsWith('/device-dashboard')
     ) {
-        return NextResponse.redirect(new URL('/dashboard', req.nextUrl));
+        return NextResponse.redirect(new URL('/device-dashboard', req.nextUrl));
     }
 
     return NextResponse.next();

@@ -1,5 +1,5 @@
 import { Cpu, RotateCcw, Settings } from 'lucide-react';
-import DeviceCard from '../DeviceCard/DeviceCard';
+import DeviceAnalyticsCard from '../DeviceAnalyticsCard/DeviceAnalyticsCard';
 import LossMetricCard from '../LossMetricCard/LossMetricCard';
 import styles from './ProductionLineSection.module.css';
 
@@ -8,6 +8,13 @@ interface DeviceData {
   name: string;
   count: number;
   lastUpdated: string;
+  // Analytics data
+  speedPerMinute?: number;
+  speedPerHour?: number;
+  isRunning?: boolean;
+  trend?: 'increasing' | 'stable' | 'decreasing' | 'stopped';
+  idleTimeSeconds?: number;
+  position?: string;
 }
 
 interface ProductionLineInfo {
@@ -99,12 +106,20 @@ export default function ProductionLineSection({
       {/* Device Grid */}
       <div className={styles.deviceGrid}>
         {devices.map((device) => (
-          <DeviceCard
+          <DeviceAnalyticsCard
             key={device.id}
+            device={{
+              deviceId: device.id,
+              position: device.position || '',
+              currentCount: device.count,
+              speedPerMinute: device.speedPerMinute || 0,
+              speedPerHour: device.speedPerHour || 0,
+              isRunning: device.isRunning ?? true,
+              trend: device.trend || 'stable',
+              idleTimeSeconds: device.idleTimeSeconds || 0,
+              lastUpdated: device.lastUpdated,
+            }}
             deviceName={device.name}
-            count={device.count}
-            lastUpdated={device.lastUpdated}
-            variant="primary"
           />
         ))}
       </div>
