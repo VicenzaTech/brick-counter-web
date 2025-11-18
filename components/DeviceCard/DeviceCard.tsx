@@ -1,5 +1,5 @@
 import { Cpu } from 'lucide-react';
-import styles from '@/styles/DeviceCard.module.css';
+import styles from './DeviceCard.module.css';
 
 interface DeviceCardProps {
   deviceName: string;
