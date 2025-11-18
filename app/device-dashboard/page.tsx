@@ -77,8 +77,11 @@ export default function DeviceDashboardPage() {
         const response = await fetch('http://localhost:5555/production-lines');
         const data = await response.json();
         
+        // Handle both array and object response
+        const lines = Array.isArray(data) ? data : (data.data || data.items || []);
+        
         // Filter for lines 1, 2, 5, 6
-        const filteredLines = data.filter((line: ProductionLineInfo) => 
+        const filteredLines = lines.filter((line: ProductionLineInfo) => 
           [1, 2, 5, 6].includes(line.id)
         );
         setProductionLines(filteredLines);

@@ -214,7 +214,7 @@ export default function BrickTypesPage() {
         return brickTypes.find(b => b.id === line.activeBrickTypeId);
     };
 
-    const handleRequestLineSetting = () => {
+    const handleRequestLineSetting = (line: ProductionLine) => {
         alert('Tính năng sẽ được phát triển tại "feature/brick-type" ')
     }
 

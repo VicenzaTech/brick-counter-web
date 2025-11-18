@@ -101,7 +101,7 @@ export default function Page() {
                         Hệ thống
                         <br />
                         <span className={styles.titleAccent}>
-                            Quản lý nguồn lực
+                            Quản lý sản lượng gạch
                         </span>
                     </h1>
 
