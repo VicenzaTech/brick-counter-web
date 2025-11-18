@@ -85,7 +85,7 @@ export default function DeviceDashboardPage() {
   useEffect(() => {
     const fetchProductionLines = async () => {
       try {
-        const response = await fetch('http://localhost:5555/production-lines');
+        const response = await fetch('http://localhost:5555/api/production-lines');
         const data = await response.json();
         
         // Handle both array and object response
