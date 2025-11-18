@@ -1,4 +1,4 @@
-import LineCard from "./LineCard";
+import LineCard from "../LineCard/LineCard";
 
 export default function FactoryCard({ factory }: { factory: any }) {
   return (

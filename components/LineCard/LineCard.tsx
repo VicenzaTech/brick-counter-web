@@ -1,4 +1,4 @@
-import MetricCard from "@/components/MetricCard";
+import MetricCard from "@/components/MetricCard/MetricCard";
 
 export default function LineCard({ line }: { line: number }) {
   const metrics = [
@@ -18,7 +18,7 @@ export default function LineCard({ line }: { line: number }) {
       </div>
       <div className="metric-grid">
         {metrics.map((m, i) => (
-          <MetricCard key={i} label={m.label} value={m.value} />
+          <MetricCard key={i} title={m.label} value={m.value} />
         ))}
       </div>
     </div>

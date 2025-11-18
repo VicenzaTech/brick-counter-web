@@ -1,6 +1,6 @@
 import "./globals.css";
-import Navbar from "@/components/Navbar";
-import Footer from "@/components/Footer";
+import Navbar from "@/components/Navbar/Navbar";
+import Footer from "@/components/Footer/Footer";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import Loading from "@/components/Loading/Loading";
 

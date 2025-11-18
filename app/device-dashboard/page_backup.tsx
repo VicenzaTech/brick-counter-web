@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Cpu, ArrowLeftRight, TrendingUp, TrendingDown, RotateCcw } from 'lucide-react';
-import ProductionLineSection from '@/components/ProductionLineSection';
-import DeviceCard from '@/components/DeviceCard';
+import ProductionLineSection from '@/components/ProductionLineSection/ProductionLineSection';
+import DeviceCard from '@/components/DeviceCard/DeviceCard';
 import { useDeviceDashboardWebSocket } from '@/hooks/useDeviceDashboardWebSocket';
 import styles from './page.module.css';
 

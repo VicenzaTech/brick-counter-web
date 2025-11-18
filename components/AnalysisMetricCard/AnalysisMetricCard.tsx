@@ -1,4 +1,4 @@
-import styles from '@/styles/AnalysisMetricCard.module.css';
+import styles from './AnalysisMetricCard.module.css';
 
 interface AnalysisMetricCardProps {
   title: string;

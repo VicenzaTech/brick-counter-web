@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
-import MetricCard from '@/components/MetricCard';
-import AnalysisMetricCard from '@/components/AnalysisMetricCard';
+import MetricCard from '@/components/MetricCard/MetricCard';
+import AnalysisMetricCard from '@/components/AnalysisMetricCard/AnalysisMetricCard';
 import { apiFetch } from '@/lib/http/http';
 
 type DatePreset = 'today' | '7days' | '14days' | '30days' | 'custom';
@@ -111,7 +111,6 @@ export default function AnalyticsPage() {
     startDate: new Date().toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0],
   });
-  const [selectedShift, setSelectedShift] = useState<string>('');
   const [viewMode, setViewMode] = useState<'single' | 'range'>('single'); // single day or range
   const [dailyData, setDailyData] = useState<any[]>([]); // For multi-day table view
   
@@ -126,13 +125,19 @@ export default function AnalyticsPage() {
 
   const fetchBrickTypes = async () => {
     try {
-      const res = await fetch(`${API_URL}/brick-types`);
+      console.log('🔍 Fetching brick types from:', `${API_URL}/brick-types`);
+      const res = await apiFetch(`${API_URL}/brick-types`);
+      console.log('📦 Brick types response status:', res.status);
+      
       if (res.ok) {
         const data = await res.json();
+        console.log('✅ Brick types loaded:', data);
         setBrickTypes(data);
+      } else {
+        console.error('❌ Failed to fetch brick types:', res.status, res.statusText);
       }
     } catch (error) {
-      console.error('Error fetching brick types:', error);
+      console.error('❌ Error fetching brick types:', error);
     }
   };
 
@@ -177,7 +182,7 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     fetchAnalyticsData();
-  }, [selectedLine, selectedBrickType, dateRange, selectedShift]);
+  }, [selectedLine, selectedBrickType, dateRange]);
 
   useEffect(() => {
     console.log('dailyData changed:', dailyData);
@@ -196,9 +201,14 @@ export default function AnalyticsPage() {
       if (selectedBrickType) {
         queryParams.append('brickTypeId', selectedBrickType.toString());
       }
-      if (selectedShift) {
-        queryParams.append('shift', selectedShift);
-      }
+
+      console.log('🔍 Fetching analytics with params:', {
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        productionLineId: selectedLine,
+        brickTypeId: selectedBrickType,
+        queryString: queryParams.toString()
+      });
 
       // Determine if we need daily breakdown
       const start = new Date(dateRange.startDate);
@@ -1307,13 +1317,6 @@ export default function AnalyticsPage() {
                   {brick.name}{brick.description ? ` - ${brick.description}` : ''}
                 </option>
               ))}
-            </select>
-
-            <select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)} className={styles.filterSelect}>
-              <option value="">Tất cả ca</option>
-              <option value="A">Ca A</option>
-              <option value="B">Ca B</option>
-              <option value="C">Ca C</option>
             </select>
 
             {/* Date Range Picker - Always visible */}
