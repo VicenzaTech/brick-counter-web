@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import styles from './page.module.css';
-import MetricCard from '@/components/MetricCard';
-import AnalysisMetricCard from '@/components/AnalysisMetricCard';
+import MetricCard from '@/components/MetricCard/MetricCard';
+import AnalysisMetricCard from '@/components/AnalysisMetricCard/AnalysisMetricCard';
 import { apiFetch } from '@/lib/http/http';
 
 type DatePreset = 'today' | '7days' | '14days' | '30days' | 'custom';

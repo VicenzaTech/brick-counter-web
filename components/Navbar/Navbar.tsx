@@ -7,10 +7,10 @@ import { useState } from 'react';
 import styles from './Navbar.module.css';
 import { authStateSelector, useAuthStore } from '@/store/auth.store';
 import { useShallow } from 'zustand/shallow';
-import UserInfo from './UserInfo/UserInfo';
+import UserInfo from '../UserInfo/UserInfo';
 
 const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    // { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/device-dashboard', label: 'Phân tích thiết bị', icon: Activity },
     { href: '/analytics', label: 'Phân tích sản xuất', icon: TrendingUp },
     { href: '/brick-types', label: 'Quản lý dòng gạch', icon: Box },

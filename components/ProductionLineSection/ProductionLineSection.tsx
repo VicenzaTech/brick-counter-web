@@ -1,6 +1,6 @@
 import { Cpu, RotateCcw, Settings } from 'lucide-react';
-import DeviceCard from './DeviceCard';
-import LossMetricCard from './LossMetricCard';
+import DeviceCard from '../DeviceCard/DeviceCard';
+import LossMetricCard from '../LossMetricCard/LossMetricCard';
 import styles from './ProductionLineSection.module.css';
 
 interface DeviceData {

@@ -74,7 +74,7 @@ export default function Page() {
 
             if (user && tokens?.accessToken) {
                 setAuth({ user, accessToken: tokens.accessToken });
-                router.push('/dashboard');
+                router.push('/device-dashboard');
             } else {
                 setLoginError(
                     'Không nhận được thông tin đăng nhập hợp lệ từ máy chủ.',

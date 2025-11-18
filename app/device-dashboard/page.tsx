@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Cpu } from 'lucide-react';
-import ProductionLineSection from '@/components/ProductionLineSection';
+import ProductionLineSection from '@/components/ProductionLineSection/ProductionLineSection';
 import DeviceConfigModal from '@/components/DeviceConfigModal';
 import { useDeviceDashboardWebSocket } from '@/hooks/useDeviceDashboardWebSocket';
 import styles from './page.module.css';
