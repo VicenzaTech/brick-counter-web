@@ -1,0 +1,97 @@
+.card {
+  background: white;
+  border-radius: 8px;
+  padding: 1.25rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  border-left: 4px solid;
+}
+
+.card:hover {
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
+}
+
+.card.success {
+  border-left-color: #198754;
+}
+
+.card.muted {
+  border-left-color: #6c757d;
+}
+
+.card.warning {
+  border-left-color: #ffc107;
+}
+
+.card.danger {
+  border-left-color: #dc3545;
+}
+
+.header {
+  margin-bottom: 0.75rem;
+}
+
+.title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #6c757d;
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.body {
+  margin-bottom: 0.75rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #212529;
+  line-height: 1;
+}
+
+.unit {
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.success .badge {
+  background: #d1e7dd;
+  color: #0f5132;
+}
+
+.muted .badge {
+  background: #e9ecef;
+  color: #495057;
+}
+
+.warning .badge {
+  background: #fff3cd;
+  color: #664d03;
+}
+
+.danger .badge {
+  background: #f8d7da;
+  color: #842029;
+}

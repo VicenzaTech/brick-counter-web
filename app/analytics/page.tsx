@@ -9,6 +9,13 @@ import { apiFetch } from '@/lib/http/http';
 type DatePreset = 'today' | '7days' | '14days' | '30days' | 'custom';
 type ActiveTab = 'overview' | 'waste' | 'efficiency' | 'quota' | 'trends';
 
+interface BrickType {
+  id: number;
+  name: string;
+  description?: string;
+  unit?: string;
+}
+
 interface MetricsSummary {
   ty_le_hao_phi_tong: number;
   hieu_suat_san_xuat: number;
@@ -98,6 +105,7 @@ export default function AnalyticsPage() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [selectedLine, setSelectedLine] = useState<number>(1);
   const [selectedBrickType, setSelectedBrickType] = useState<number | null>(null);
+  const [brickTypes, setBrickTypes] = useState<BrickType[]>([]);
   const [datePreset, setDatePreset] = useState<DatePreset>('today');
   const [dateRange, setDateRange] = useState({
     startDate: new Date().toISOString().split('T')[0],
@@ -115,6 +123,18 @@ export default function AnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555/api';
+
+  const fetchBrickTypes = async () => {
+    try {
+      const res = await fetch(`${API_URL}/brick-types`);
+      if (res.ok) {
+        const data = await res.json();
+        setBrickTypes(data);
+      }
+    } catch (error) {
+      console.error('Error fetching brick types:', error);
+    }
+  };
 
   const handleDatePresetChange = (preset: DatePreset) => {
     setDatePreset(preset);
@@ -150,6 +170,10 @@ export default function AnalyticsPage() {
     setDateRange({ startDate, endDate });
     setViewMode(mode);
   };
+
+  useEffect(() => {
+    fetchBrickTypes();
+  }, []);
 
   useEffect(() => {
     fetchAnalyticsData();
@@ -328,6 +352,7 @@ export default function AnalyticsPage() {
     }
 
     return (
+      <>
       <div className={styles.dailyTableSection}>
         <div className={styles.tableHeader}>
           <h3>📊 Báo cáo chi tiết theo ngày</h3>
@@ -490,6 +515,269 @@ export default function AnalyticsPage() {
           </table>
         </div>
       </div>
+
+      {/* Trend Analysis Chart - Line Chart */}
+      <div className={styles.chartSection}>
+        <h3>📈 Phân tích xu hướng sản xuất</h3>
+        <div className={styles.chartContainer}>
+          <svg className={styles.lineChart} viewBox="0 0 1000 400" preserveAspectRatio="xMidYMid meet">
+            <defs>
+              <linearGradient id="efficiencyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style={{ stopColor: '#4caf50', stopOpacity: 0.3 }} />
+                <stop offset="100%" style={{ stopColor: '#4caf50', stopOpacity: 0.05 }} />
+              </linearGradient>
+              <linearGradient id="wasteGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" style={{ stopColor: '#f44336', stopOpacity: 0.3 }} />
+                <stop offset="100%" style={{ stopColor: '#f44336', stopOpacity: 0.05 }} />
+              </linearGradient>
+            </defs>
+
+            {/* Grid lines */}
+            <g className={styles.gridLines}>
+              {[0, 20, 40, 60, 80, 100].map((y) => (
+                <line
+                  key={y}
+                  x1="50"
+                  y1={350 - (y * 3)}
+                  x2="950"
+                  y2={350 - (y * 3)}
+                  stroke="#e0e0e0"
+                  strokeWidth="1"
+                  strokeDasharray="5,5"
+                />
+              ))}
+            </g>
+
+            {/* Y-axis labels */}
+            <g className={styles.axisLabels}>
+              {[0, 20, 40, 60, 80, 100].map((y) => (
+                <text
+                  key={y}
+                  x="40"
+                  y={355 - (y * 3)}
+                  textAnchor="end"
+                  fontSize="12"
+                  fill="#666"
+                >
+                  {y}%
+                </text>
+              ))}
+            </g>
+
+            {/* Efficiency Line with Area */}
+            {(() => {
+              const points = dailyData.map((d, i) => {
+                const x = 50 + (i * (900 / (dailyData.length - 1)));
+                const y = 350 - ((d.hieu_suat_san_xuat || 0) * 3);
+                return `${x},${y}`;
+              }).join(' ');
+              
+              const areaPoints = `50,350 ${points} ${50 + (900)},350`;
+              
+              return (
+                <>
+                  <polygon
+                    points={areaPoints}
+                    fill="url(#efficiencyGradient)"
+                  />
+                  <polyline
+                    points={points}
+                    fill="none"
+                    stroke="#4caf50"
+                    strokeWidth="3"
+                  />
+                  {dailyData.map((d, i) => {
+                    const x = 50 + (i * (900 / (dailyData.length - 1)));
+                    const y = 350 - ((d.hieu_suat_san_xuat || 0) * 3);
+                    return (
+                      <g key={i}>
+                        <circle cx={x} cy={y} r="5" fill="#4caf50" stroke="#fff" strokeWidth="2" />
+                        <title>
+                          {new Date(d.date).toLocaleDateString('vi-VN')}
+                          {'\n'}Hiệu suất: {d.hieu_suat_san_xuat?.toFixed(1)}%
+                        </title>
+                      </g>
+                    );
+                  })}
+                </>
+              );
+            })()}
+
+            {/* Waste Line with Area */}
+            {(() => {
+              const points = dailyData.map((d, i) => {
+                const x = 50 + (i * (900 / (dailyData.length - 1)));
+                const y = 350 - ((d.ty_le_hao_phi_tong || 0) * 3);
+                return `${x},${y}`;
+              }).join(' ');
+              
+              const areaPoints = `50,350 ${points} ${50 + (900)},350`;
+              
+              return (
+                <>
+                  <polygon
+                    points={areaPoints}
+                    fill="url(#wasteGradient)"
+                  />
+                  <polyline
+                    points={points}
+                    fill="none"
+                    stroke="#f44336"
+                    strokeWidth="3"
+                  />
+                  {dailyData.map((d, i) => {
+                    const x = 50 + (i * (900 / (dailyData.length - 1)));
+                    const y = 350 - ((d.ty_le_hao_phi_tong || 0) * 3);
+                    return (
+                      <g key={i}>
+                        <circle cx={x} cy={y} r="5" fill="#f44336" stroke="#fff" strokeWidth="2" />
+                        <title>
+                          {new Date(d.date).toLocaleDateString('vi-VN')}
+                          {'\n'}Hao phí: {d.ty_le_hao_phi_tong?.toFixed(2)}%
+                        </title>
+                      </g>
+                    );
+                  })}
+                </>
+              );
+            })()}
+
+            {/* X-axis labels (dates) */}
+            <g className={styles.xAxisLabels}>
+              {dailyData.map((d, i) => {
+                const step = Math.ceil(dailyData.length / 10);
+                if (i % step !== 0 && i !== dailyData.length - 1) return null;
+                
+                const x = 50 + (i * (900 / (dailyData.length - 1)));
+                return (
+                  <text
+                    key={i}
+                    x={x}
+                    y="375"
+                    textAnchor="middle"
+                    fontSize="10"
+                    fill="#666"
+                  >
+                    {new Date(d.date).toLocaleDateString('vi-VN', { 
+                      day: '2-digit',
+                      month: '2-digit'
+                    })}
+                  </text>
+                );
+              })}
+            </g>
+
+            {/* Reference lines */}
+            <line
+              x1="50"
+              y1={350 - (90 * 3)}
+              x2="950"
+              y2={350 - (90 * 3)}
+              stroke="#4caf50"
+              strokeWidth="2"
+              strokeDasharray="10,5"
+              opacity="0.5"
+            />
+            <text x="955" y={355 - (90 * 3)} fontSize="11" fill="#4caf50" fontWeight="bold">
+              Mục tiêu 90%
+            </text>
+
+            <line
+              x1="50"
+              y1={350 - (10 * 3)}
+              x2="950"
+              y2={350 - (10 * 3)}
+              stroke="#ff9800"
+              strokeWidth="2"
+              strokeDasharray="10,5"
+              opacity="0.5"
+            />
+            <text x="955" y={355 - (10 * 3)} fontSize="11" fill="#ff9800" fontWeight="bold">
+              Ngưỡng HP 10%
+            </text>
+          </svg>
+
+          {/* Legend */}
+          <div className={styles.chartLegend}>
+            <div className={styles.legendItem}>
+              <div className={styles.legendColor} style={{ backgroundColor: '#4caf50' }}></div>
+              <span>Hiệu suất sản xuất (%)</span>
+            </div>
+            <div className={styles.legendItem}>
+              <div className={styles.legendColor} style={{ backgroundColor: '#f44336' }}></div>
+              <span>Tỷ lệ hao phí (%)</span>
+            </div>
+          </div>
+
+          {/* Statistical Analysis */}
+          <div className={styles.trendStats}>
+            <div className={styles.trendStatCard}>
+              <div className={styles.statLabel}>Hiệu suất TB</div>
+              <div className={styles.statValue}>
+                {(dailyData.reduce((sum, d) => sum + (d.hieu_suat_san_xuat || 0), 0) / dailyData.length).toFixed(1)}%
+              </div>
+              <div className={styles.statTrend}>
+                {(() => {
+                  const first = dailyData[0]?.hieu_suat_san_xuat || 0;
+                  const last = dailyData[dailyData.length - 1]?.hieu_suat_san_xuat || 0;
+                  const change = last - first;
+                  return change > 0 
+                    ? <span style={{ color: '#4caf50' }}>↑ {change.toFixed(1)}% so với đầu kỳ</span>
+                    : <span style={{ color: '#f44336' }}>↓ {Math.abs(change).toFixed(1)}% so với đầu kỳ</span>;
+                })()}
+              </div>
+            </div>
+            
+            <div className={styles.trendStatCard}>
+              <div className={styles.statLabel}>Hao phí TB</div>
+              <div className={styles.statValue}>
+                {(dailyData.reduce((sum, d) => sum + (d.ty_le_hao_phi_tong || 0), 0) / dailyData.length).toFixed(2)}%
+              </div>
+              <div className={styles.statTrend}>
+                {(() => {
+                  const first = dailyData[0]?.ty_le_hao_phi_tong || 0;
+                  const last = dailyData[dailyData.length - 1]?.ty_le_hao_phi_tong || 0;
+                  const change = last - first;
+                  return change < 0 
+                    ? <span style={{ color: '#4caf50' }}>↓ {Math.abs(change).toFixed(2)}% (Cải thiện)</span>
+                    : <span style={{ color: '#f44336' }}>↑ {change.toFixed(2)}% (Tăng)</span>;
+                })()}
+              </div>
+            </div>
+
+            <div className={styles.trendStatCard}>
+              <div className={styles.statLabel}>Số ngày đạt mục tiêu</div>
+              <div className={styles.statValue}>
+                {dailyData.filter(d => (d.hieu_suat_san_xuat || 0) >= 90).length}/{dailyData.length}
+              </div>
+              <div className={styles.statTrend}>
+                {((dailyData.filter(d => (d.hieu_suat_san_xuat || 0) >= 90).length / dailyData.length) * 100).toFixed(0)}% ngày đạt HS ≥ 90%
+              </div>
+            </div>
+
+            <div className={styles.trendStatCard}>
+              <div className={styles.statLabel}>Biến động</div>
+              <div className={styles.statValue}>
+                {(() => {
+                  const efficiencies = dailyData.map(d => d.hieu_suat_san_xuat || 0);
+                  const max = Math.max(...efficiencies);
+                  const min = Math.min(...efficiencies);
+                  return (max - min).toFixed(1) + '%';
+                })()}
+              </div>
+              <div className={styles.statTrend}>
+                Độ lệch chuẩn: {(() => {
+                  const values = dailyData.map(d => d.hieu_suat_san_xuat || 0);
+                  const avg = values.reduce((sum, v) => sum + v, 0) / values.length;
+                  const variance = values.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / values.length;
+                  return Math.sqrt(variance).toFixed(2);
+                })()}%
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </>
     );
   };
 
@@ -1006,6 +1294,19 @@ export default function AnalyticsPage() {
               <option value={1}>Dây chuyền 1</option>
               <option value={2}>Dây chuyền 2</option>
               <option value={6}>Dây chuyền 6</option>
+            </select>
+
+            <select 
+              value={selectedBrickType || ''} 
+              onChange={(e) => setSelectedBrickType(e.target.value ? Number(e.target.value) : null)} 
+              className={styles.filterSelect}
+            >
+              <option value="">Tất cả loại gạch</option>
+              {brickTypes.map((brick) => (
+                <option key={brick.id} value={brick.id}>
+                  {brick.name}{brick.description ? ` - ${brick.description}` : ''}
+                </option>
+              ))}
             </select>
 
             <select value={selectedShift} onChange={(e) => setSelectedShift(e.target.value)} className={styles.filterSelect}>

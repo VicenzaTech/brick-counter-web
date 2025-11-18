@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Cpu, ArrowLeftRight, TrendingUp, TrendingDown } from 'lucide-react';
-import DeviceCard from '@/components/DeviceCard';
-import AnalysisMetricCard from '@/components/AnalysisMetricCard';
+import { Cpu } from 'lucide-react';
+import ProductionLineSection from '@/components/ProductionLineSection';
+import DeviceConfigModal from '@/components/DeviceConfigModal';
 import { useDeviceDashboardWebSocket } from '@/hooks/useDeviceDashboardWebSocket';
 import styles from './page.module.css';
 
@@ -14,9 +14,19 @@ interface DeviceData {
   lastUpdated: string;
 }
 
-// Dữ liệu thiết bị thực tế từ database - sử dụng deviceId mapping từ Django
-// Device IDs phải khớp với deviceId trong MQTT messages
-const INITIAL_DEVICES: DeviceData[] = [
+interface ProductionLineInfo {
+  id: number;
+  name: string;
+  brickType?: {
+    id: number;
+    name: string;
+    description?: string;
+  };
+  status?: string;
+}
+
+// Initial devices for Line 1 (real devices with WebSocket)
+const INITIAL_DEVICES_LINE1: DeviceData[] = [
   { id: 'SAU-ME-01', name: 'Sau máy ép 1', count: 0, lastUpdated: '-' },
   { id: 'SAU-ME-02', name: 'Sau máy ép 2', count: 0, lastUpdated: '-' },
   { id: 'TRUOC-LN-01', name: 'Trước lò nung 1', count: 0, lastUpdated: '-' },
@@ -28,20 +38,85 @@ const INITIAL_DEVICES: DeviceData[] = [
 ];
 
 export default function DeviceDashboardPage() {
-  // WebSocket connection với NestJS backend
-  const { devices, setDevices, isConnected } = useDeviceDashboardWebSocket(INITIAL_DEVICES, {
-    enabled: true, // ✅ Bật WebSocket để kết nối với NestJS backend
-    baseUrl: 'http://localhost:5555', // NestJS Socket.IO server
+  // WebSocket for Line 1 devices
+  const { devices: devicesLine1, isConnected } = useDeviceDashboardWebSocket(INITIAL_DEVICES_LINE1, {
+    enabled: true,
+    baseUrl: 'http://localhost:5555',
   });
-  
-  console.log('🌐 DeviceDashboardPage render');
-  console.log('📊 Devices state:', devices.map(d => ({ id: d.id, name: d.name, count: d.count })));
-  console.log('🔌 WebSocket connected:', isConnected);
-  
-  const [device1, setDevice1] = useState<string>('');
-  const [device2, setDevice2] = useState<string>('');
-  const [comparisonResult, setComparisonResult] = useState<any>(null);
+
   const [currentTime, setCurrentTime] = useState<string>('');
+  const [productionLines, setProductionLines] = useState<ProductionLineInfo[]>([]);
+  const [isResetting, setIsResetting] = useState<{ [key: number]: boolean }>({});
+  const [resetMessage, setResetMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [configModal, setConfigModal] = useState<{ lineId: number; lineName: string } | null>(null);
+
+  // Fake devices for Lines 2, 5, 6 (clone from Line 1 data with different IDs)
+  const [devicesLine2, setDevicesLine2] = useState<DeviceData[]>(
+    INITIAL_DEVICES_LINE1.map((d, idx) => ({ 
+      ...d, 
+      id: `${d.id}-L2` // Add line suffix to make unique
+    }))
+  );
+  const [devicesLine5, setDevicesLine5] = useState<DeviceData[]>(
+    INITIAL_DEVICES_LINE1.map((d, idx) => ({ 
+      ...d, 
+      id: `${d.id}-L5` // Add line suffix to make unique
+    }))
+  );
+  const [devicesLine6, setDevicesLine6] = useState<DeviceData[]>(
+    INITIAL_DEVICES_LINE1.map((d, idx) => ({ 
+      ...d, 
+      id: `${d.id}-L6` // Add line suffix to make unique
+    }))
+  );
+
+  // Fetch production lines info
+  useEffect(() => {
+    const fetchProductionLines = async () => {
+      try {
+        const response = await fetch('http://localhost:5555/production-lines');
+        const data = await response.json();
+        
+        // Filter for lines 1, 2, 5, 6
+        const filteredLines = data.filter((line: ProductionLineInfo) => 
+          [1, 2, 5, 6].includes(line.id)
+        );
+        setProductionLines(filteredLines);
+      } catch (error) {
+        console.error('Error fetching production lines:', error);
+        // Fallback data if API fails
+        setProductionLines([
+          { id: 1, name: 'Dây chuyền 1', status: 'active' },
+          { id: 2, name: 'Dây chuyền 2', status: 'active' },
+          { id: 5, name: 'Dây chuyền 5', status: 'active' },
+          { id: 6, name: 'Dây chuyền 6', status: 'active' },
+        ]);
+      }
+    };
+
+    fetchProductionLines();
+  }, []);
+
+  // Update fake devices data from Line 1 (simulating same data)
+  useEffect(() => {
+    // Line 2: Update counts and timestamp
+    setDevicesLine2(devicesLine1.map(d => ({
+      ...d,
+      id: `${d.id}-L2`,
+    })));
+    
+    // Line 5: Update counts and timestamp
+    setDevicesLine5(devicesLine1.map(d => ({
+      ...d,
+      id: `${d.id}-L5`,
+    })));
+    
+    // Line 6: Update counts and timestamp
+    setDevicesLine6(devicesLine1.map(d => ({
+      ...d,
+      id: `${d.id}-L6`,
+    })));
+  }, [devicesLine1]);
 
   // Update current time
   useEffect(() => {
@@ -49,47 +124,32 @@ export default function DeviceDashboardPage() {
       setCurrentTime(new Date().toLocaleString('vi-VN'));
     };
     
-    updateTime(); // Set initial time
-    const interval = setInterval(updateTime, 1000); // Update every second
+    updateTime();
+    const interval = setInterval(updateTime, 1000);
     
     return () => clearInterval(interval);
   }, []);
 
-  // Tính toán các chỉ số hao phí (y hệt bên old-vicenza-ims-web Django)
-  // Formulas from: templates/pages/phan-tich/analysis.html lines 1050-1083
-  const calculateMetrics = () => {
-    // Get device counts based on real deviceId
-    const sauMe1 = devices.find(d => d.id === 'SAU-ME-01')?.count || 0;
-    const sauMe2 = devices.find(d => d.id === 'SAU-ME-02')?.count || 0;
-    const truocLn1 = devices.find(d => d.id === 'TRUOC-LN-01')?.count || 0;
-    const truocLn2 = devices.find(d => d.id === 'TRUOC-LN-02')?.count || 0;
-    const sauLn = devices.find(d => d.id === 'SAU-LN-01')?.count || 0;
-    const truocMm = devices.find(d => d.id === 'TRUOC-MM-01')?.count || 0;
-    const truocDh = devices.find(d => d.id === 'TRUOC-DH-01')?.count || 0;
+  // Calculate metrics for a device list
+  const calculateMetrics = (devices: DeviceData[]) => {
+    const sauMe1 = devices.find(d => d.id.includes('SAU-ME'))?.count || 0;
+    const sauMe2 = devices.find(d => d.id.includes('SAU-ME') && d.id !== devices.find(d2 => d2.id.includes('SAU-ME'))?.id)?.count || 0;
+    const truocLn1 = devices.find(d => d.id.includes('TRUOC-LN'))?.count || 0;
+    const truocLn2 = devices.filter(d => d.id.includes('TRUOC-LN'))[1]?.count || 0;
+    const sauLn = devices.find(d => d.id.includes('SAU-LN'))?.count || 0;
+    const truocMm = devices.find(d => d.id.includes('TRUOC-MM'))?.count || 0;
+    const truocDh = devices.find(d => d.id.includes('TRUOC-DH'))?.count || 0;
 
-    // Calculate loss metrics exactly as in Django
-    // Hao phí mộc: Tổng sản lượng trước lò nung - Tổng sản lượng sau máy ép
-    // Công thức: (TRUOC-LN-1 + TRUOC-LN-2) - (SAU-ME-1 + SAU-ME-2)
     const haophiMoc = (truocLn1 + truocLn2) - (sauMe1 + sauMe2);
-
-    // Hao phí nung: Sản lượng sau lò nung - Tổng sản lượng trước lò nung
-    // Công thức: SAU-LN - (TRUOC-LN-1 + TRUOC-LN-2)
     const haophiNung = sauLn - (truocLn1 + truocLn2);
-
-    // Hao phí trước mài: Sản lượng trước mài mặt - Sản lượng sau lò nung
-    // Công thức: TRUOC-MM - SAU-LN
     const haophiTruocMai = truocMm - sauLn;
-
-    // Hao phí hoàn thiện: Sản lượng trước đóng hộp - Sản lượng trước mài mặt
-    // Công thức: TRUOC-DH - TRUOC-MM
     const haophiHoanThien = truocDh - truocMm;
 
-    // Helper function to determine color variant (matching Django)
     const getVariant = (value: number): 'primary' | 'success' | 'warning' | 'danger' | 'muted' => {
-      if (value < 0) return 'success';  // Negative loss (gain) - green
-      if (value === 0) return 'muted';   // No loss - gray
-      if (value > 0 && value <= 100) return 'warning';  // Small loss - yellow
-      return 'danger';  // High loss - red
+      if (value < 0) return 'success';
+      if (value === 0) return 'muted';
+      if (value > 0 && value <= 100) return 'warning';
+      return 'danger';
     };
 
     return {
@@ -104,35 +164,94 @@ export default function DeviceDashboardPage() {
     };
   };
 
-  const metrics = calculateMetrics();
+  // Handle reset for specific line
+  const handleResetLine = async (lineId: number) => {
+    if (!confirm(`Bạn có chắc chắn muốn reset toàn bộ thiết bị của Dây chuyền ${lineId}?\n\nTất cả số đếm sẽ về 0.`)) {
+      return;
+    }
 
-  // Xử lý so sánh thiết bị
-  const handleCompare = () => {
-    if (!device1 || !device2) return;
+    setIsResetting(prev => ({ ...prev, [lineId]: true }));
+    setResetMessage(null);
 
-    const dev1Data = devices.find(d => d.id === device1);
-    const dev2Data = devices.find(d => d.id === device2);
+    try {
+      const response = await fetch(`http://localhost:5555/api/mqtt/device-command/reset-line/${lineId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-    if (!dev1Data || !dev2Data) return;
+      const result = await response.json();
 
-    const diff = dev1Data.count - dev2Data.count;
-    const percentage = dev2Data.count !== 0 
-      ? ((diff / dev2Data.count) * 100).toFixed(2)
-      : '0';
-
-    setComparisonResult({
-      device1: dev1Data,
-      device2: dev2Data,
-      diff,
-      percentage,
-      winner: diff > 0 ? 'device1' : diff < 0 ? 'device2' : 'equal',
-    });
+      if (result.success) {
+        setResetMessage({
+          type: 'success',
+          text: `✅ ${result.message} - Lệnh ID: ${result.commandId.substring(0, 8)}...`
+        });
+        setTimeout(() => setResetMessage(null), 5000);
+      } else {
+        setResetMessage({
+          type: 'error',
+          text: `❌ ${result.message}`
+        });
+      }
+    } catch (error) {
+      console.error('Reset error:', error);
+      setResetMessage({
+        type: 'error',
+        text: '❌ Lỗi kết nối đến server'
+      });
+    } finally {
+      setIsResetting(prev => ({ ...prev, [lineId]: false }));
+    }
   };
 
-  // Reset so sánh khi thay đổi thiết bị
-  useEffect(() => {
-    setComparisonResult(null);
-  }, [device1, device2]);
+  // Get line info by ID
+  const getLineInfo = (lineId: number) => {
+    return productionLines.find(line => line.id === lineId) || {
+      id: lineId,
+      name: `Dây chuyền ${lineId}`,
+      status: 'active'
+    };
+  };
+
+  // Handle device config
+  const handleLineConfig = (lineId: number, lineName: string) => {
+    setConfigModal({ lineId, lineName });
+  };
+
+  // Save device config
+  const handleSaveConfig = async (interval: number) => {
+    if (!configModal) return;
+
+    try {
+      const response = await fetch(
+        `http://localhost:5555/api/mqtt/device-command/config-line/${configModal.lineId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ interval }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        setResetMessage({
+          type: 'success',
+          text: `✅ ${result.message}`
+        });
+        setTimeout(() => setResetMessage(null), 5000);
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (error: any) {
+      console.error('Config error:', error);
+      throw new Error(error.message || 'Lỗi kết nối đến server');
+    }
+  };
 
   return (
     <div className={styles.container}>
@@ -142,7 +261,7 @@ export default function DeviceDashboardPage() {
           <Cpu size={32} className={styles.headerIcon} />
           <div>
             <h1 className={styles.title}>Phân tích thiết bị</h1>
-            <p className={styles.subtitle}>Phân xưởng 1 - Dây chuyền 1</p>
+            <p className={styles.subtitle}>Phân xưởng 1 - Tất cả dây chuyền</p>
           </div>
         </div>
         <div className={styles.headerRight}>
@@ -158,192 +277,67 @@ export default function DeviceDashboardPage() {
         </div>
       </div>
 
-      {/* Section Header */}
-      <div className={styles.sectionHeader}>
-        <h2 className={styles.sectionTitle}>
-          <Cpu size={24} />
-          Dây chuyền 1
-        </h2>
-      </div>
-
-      {/* Device Grid */}
-      <div className={styles.deviceGrid}>
-        {devices.map((device) => (
-          <DeviceCard
-            key={device.id}
-            deviceName={device.name}
-            count={device.count}
-            lastUpdated={device.lastUpdated}
-            variant="primary"
-          />
-        ))}
-      </div>
-
-      {/* Metrics Section - Hao phí metrics exactly matching Django */}
-      <div className={styles.metricsSection}>
-        <div className={styles.metricsGrid}>
-          <AnalysisMetricCard
-            title="Hao phí mộc"
-            value={metrics.haophiMoc}
-            variant={metrics.haophiMocVariant}
-          />
-          <AnalysisMetricCard
-            title="Hao phí nung"
-            value={metrics.haophiNung}
-            variant={metrics.haophiNungVariant}
-          />
-          <AnalysisMetricCard
-            title="Hao phí trước mài"
-            value={metrics.haophiTruocMai}
-            variant={metrics.haophiTruocMaiVariant}
-          />
-          <AnalysisMetricCard
-            title="Hao phí hoàn thiện"
-            value={metrics.haophiHoanThien}
-            variant={metrics.haophiHoanThienVariant}
-          />
+      {/* Reset Message */}
+      {resetMessage && (
+        <div className={`${styles.resetMessage} ${styles[resetMessage.type]}`}>
+          {resetMessage.text}
         </div>
-      </div>
+      )}
 
-      {/* Device Comparison Section */}
-      <div className={styles.comparisonSection}>
-        <div className={styles.card}>
-          <div className={styles.cardHeader}>
-            <h3 className={styles.cardTitle}>
-              <ArrowLeftRight size={20} />
-              So sánh thiết bị dây chuyền 1
-            </h3>
-          </div>
-          <div className={styles.cardBody}>
-            <div className={styles.selectGrid}>
-              <div className={styles.formGroup}>
-                <label htmlFor="device1-select" className={styles.label}>
-                  Thiết bị 1 (Trái)
-                </label>
-                <select
-                  id="device1-select"
-                  className={styles.select}
-                  value={device1}
-                  onChange={(e) => setDevice1(e.target.value)}
-                >
-                  <option value="">-- Chọn thiết bị --</option>
-                  {devices.map((device) => (
-                    <option key={device.id} value={device.id}>
-                      {device.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className={styles.formGroup}>
-                <label htmlFor="device2-select" className={styles.label}>
-                  Thiết bị 2 (Phải)
-                </label>
-                <select
-                  id="device2-select"
-                  className={styles.select}
-                  value={device2}
-                  onChange={(e) => setDevice2(e.target.value)}
-                >
-                  <option value="">-- Chọn thiết bị --</option>
-                  {devices.map((device) => (
-                    <option key={device.id} value={device.id}>
-                      {device.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+      {/* Production Line 1 */}
+      <ProductionLineSection
+        lineInfo={getLineInfo(1)}
+        devices={devicesLine1}
+        metrics={calculateMetrics(devicesLine1)}
+        onReset={() => handleResetLine(1)}
+        isResetting={isResetting[1] || false}
+        showResetButton={true}
+        onConfig={() => handleLineConfig(1, getLineInfo(1).name)}
+      />
 
-            <button
-              className={styles.compareButton}
-              onClick={handleCompare}
-              disabled={!device1 || !device2}
-            >
-              <ArrowLeftRight size={20} />
-              So sánh
-            </button>
+      {/* Production Line 2 */}
+      <ProductionLineSection
+        lineInfo={getLineInfo(2)}
+        devices={devicesLine2}
+        metrics={calculateMetrics(devicesLine2)}
+        onReset={() => handleResetLine(2)}
+        isResetting={isResetting[2] || false}
+        showResetButton={true}
+        onConfig={() => handleLineConfig(2, getLineInfo(2).name)}
+      />
 
-            {/* Comparison Result */}
-            {comparisonResult && (
-              <div className={styles.comparisonResult}>
-                <div className={styles.resultCard}>
-                  <h4 className={styles.resultTitle}>Kết quả so sánh</h4>
-                  <div className={styles.resultGrid}>
-                    {/* Device 1 */}
-                    <div className={styles.deviceResult}>
-                      <h5 className={styles.deviceResultTitle}>Thiết bị 1</h5>
-                      <div className={`${styles.deviceResultCard} ${comparisonResult.winner === 'device1' ? styles.winner : ''}`}>
-                        <div className={styles.deviceResultName}>
-                          {comparisonResult.device1.name}
-                        </div>
-                        <div className={styles.deviceResultCount}>
-                          {comparisonResult.device1.count.toLocaleString('vi-VN')}
-                        </div>
-                        <div className={styles.deviceResultTime}>
-                          {comparisonResult.device1.lastUpdated}
-                        </div>
-                      </div>
-                    </div>
+      {/* Production Line 5 */}
+      <ProductionLineSection
+        lineInfo={getLineInfo(5)}
+        devices={devicesLine5}
+        metrics={calculateMetrics(devicesLine5)}
+        onReset={() => handleResetLine(5)}
+        isResetting={isResetting[5] || false}
+        showResetButton={true}
+        onConfig={() => handleLineConfig(5, getLineInfo(5).name)}
+      />
 
-                    {/* Comparison */}
-                    <div className={styles.deviceResult}>
-                      <h5 className={styles.deviceResultTitle}>So sánh</h5>
-                      <div className={styles.comparisonStats}>
-                        <div className={styles.statItem}>
-                          <span className={styles.statLabel}>Chênh lệch</span>
-                          <span className={`${styles.statValue} ${comparisonResult.diff > 0 ? styles.positive : styles.negative}`}>
-                            {comparisonResult.diff > 0 ? '+' : ''}{comparisonResult.diff.toLocaleString('vi-VN')}
-                          </span>
-                        </div>
-                        <div className={styles.statItem}>
-                          <span className={styles.statLabel}>Phần trăm</span>
-                          <span className={`${styles.statValue} ${comparisonResult.diff > 0 ? styles.positive : styles.negative}`}>
-                            {comparisonResult.diff > 0 ? '+' : ''}{comparisonResult.percentage}%
-                          </span>
-                        </div>
-                        <div className={styles.statItem}>
-                          <span className={styles.statLabel}>Kết luận</span>
-                          <span className={styles.conclusion}>
-                            {comparisonResult.winner === 'equal' ? (
-                              'Bằng nhau'
-                            ) : comparisonResult.winner === 'device1' ? (
-                              <>
-                                <TrendingUp size={16} />
-                                Thiết bị 1 cao hơn
-                              </>
-                            ) : (
-                              <>
-                                <TrendingDown size={16} />
-                                Thiết bị 2 cao hơn
-                              </>
-                            )}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
+      {/* Production Line 6 */}
+      <ProductionLineSection
+        lineInfo={getLineInfo(6)}
+        devices={devicesLine6}
+        metrics={calculateMetrics(devicesLine6)}
+        onReset={() => handleResetLine(6)}
+        isResetting={isResetting[6] || false}
+        showResetButton={true}
+        onConfig={() => handleLineConfig(6, getLineInfo(6).name)}
+      />
 
-                    {/* Device 2 */}
-                    <div className={styles.deviceResult}>
-                      <h5 className={styles.deviceResultTitle}>Thiết bị 2</h5>
-                      <div className={`${styles.deviceResultCard} ${comparisonResult.winner === 'device2' ? styles.winner : ''}`}>
-                        <div className={styles.deviceResultName}>
-                          {comparisonResult.device2.name}
-                        </div>
-                        <div className={styles.deviceResultCount}>
-                          {comparisonResult.device2.count.toLocaleString('vi-VN')}
-                        </div>
-                        <div className={styles.deviceResultTime}>
-                          {comparisonResult.device2.lastUpdated}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Device Config Modal */}
+      {configModal && (
+        <DeviceConfigModal
+          lineId={configModal.lineId}
+          lineName={configModal.lineName}
+          deviceCount={8}
+          onClose={() => setConfigModal(null)}
+          onSave={handleSaveConfig}
+        />
+      )}
     </div>
   );
 }

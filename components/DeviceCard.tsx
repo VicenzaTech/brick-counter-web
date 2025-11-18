@@ -8,7 +8,12 @@ interface DeviceCardProps {
   variant?: 'primary' | 'success' | 'warning' | 'danger';
 }
 
-const DeviceCard = ({ deviceName, count, lastUpdated, variant = 'primary' }: DeviceCardProps) => {
+const DeviceCard = ({ 
+  deviceName, 
+  count, 
+  lastUpdated, 
+  variant = 'primary'
+}: DeviceCardProps) => {
   return (
     <div className={`${styles.deviceCard} ${styles[variant]}`}>
       <div className={styles.deviceIcon}>
