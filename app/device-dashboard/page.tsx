@@ -5,6 +5,7 @@ import { Cpu } from 'lucide-react';
 import ProductionLineSection from '@/components/ProductionLineSection/ProductionLineSection';
 import DeviceConfigModal from '@/components/DeviceConfigModal/DeviceConfigModal';
 import { useDeviceDashboardWebSocket } from '@/hooks/useDeviceDashboardWebSocket';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import styles from './page.module.css';
 
 interface DeviceData {
@@ -12,6 +13,13 @@ interface DeviceData {
   name: string;
   count: number;
   lastUpdated: string;
+  // Analytics data
+  speedPerMinute?: number;
+  speedPerHour?: number;
+  isRunning?: boolean;
+  trend?: 'increasing' | 'stable' | 'decreasing' | 'stopped';
+  idleTimeSeconds?: number;
+  position?: string;
 }
 
 interface ProductionLineInfo {
@@ -38,11 +46,14 @@ const INITIAL_DEVICES_LINE1: DeviceData[] = [
 ];
 
 export default function DeviceDashboardPage() {
-  // WebSocket for Line 1 devices
+  // WebSocket for Line 1 devices (count data)
   const { devices: devicesLine1, isConnected } = useDeviceDashboardWebSocket(INITIAL_DEVICES_LINE1, {
     enabled: true,
     baseUrl: 'http://localhost:5555',
   });
+
+  // Analytics hook for speed, trend, etc.
+  const { lineMetrics, deviceMetrics, isConnected: analyticsConnected } = useAnalytics('http://localhost:5555');
 
   const [currentTime, setCurrentTime] = useState<string>('');
   const [productionLines, setProductionLines] = useState<ProductionLineInfo[]>([]);
@@ -120,6 +131,39 @@ export default function DeviceDashboardPage() {
       id: `${d.id}-L6`,
     })));
   }, [devicesLine1]);
+
+  // Merge device data with analytics
+  const mergeDeviceWithAnalytics = (devices: DeviceData[]): DeviceData[] => {
+    return devices.map(device => {
+      const analytics = deviceMetrics.get(device.id);
+      
+      if (analytics) {
+        return {
+          ...device,
+          speedPerMinute: analytics.speedPerMinute,
+          speedPerHour: analytics.speedPerHour,
+          isRunning: analytics.isRunning,
+          trend: analytics.trend,
+          idleTimeSeconds: analytics.idleTimeSeconds,
+          position: analytics.position,
+          // Keep lastUpdated from WebSocket telemetry (MQTT message timestamp)
+        };
+      }
+      
+      return device;
+    });
+  };
+
+  // Get enhanced devices with analytics
+  const enhancedDevicesLine1 = mergeDeviceWithAnalytics(devicesLine1);
+  // const enhancedDevicesLine2 = mergeDeviceWithAnalytics(devicesLine2);
+  // const enhancedDevicesLine5 = mergeDeviceWithAnalytics(devicesLine5);
+  // const enhancedDevicesLine6 = mergeDeviceWithAnalytics(devicesLine6);
+  const enhancedDevicesLine2 = mergeDeviceWithAnalytics(devicesLine1);
+  const enhancedDevicesLine5 = mergeDeviceWithAnalytics(devicesLine1);
+  const enhancedDevicesLine6 = mergeDeviceWithAnalytics(devicesLine1);
+  
+  
 
   // Update current time
   useEffect(() => {
@@ -271,7 +315,13 @@ export default function DeviceDashboardPage() {
           <div className={styles.connectionStatus}>
             <span className={`${styles.statusDot} ${isConnected ? styles.connected : styles.disconnected}`}></span>
             <span className={styles.statusText}>
-              {isConnected ? 'Đang kết nối' : 'Chế độ demo'}
+              {isConnected ? 'WebSocket' : 'Offline'}
+            </span>
+          </div>
+          <div className={styles.connectionStatus} style={{ marginLeft: '12px' }}>
+            <span className={`${styles.statusDot} ${analyticsConnected ? styles.connected : styles.disconnected}`}></span>
+            <span className={styles.statusText}>
+              {analyticsConnected ? 'Analytics' : 'Offline'}
             </span>
           </div>
           <div className={styles.headerTime}>
@@ -290,8 +340,8 @@ export default function DeviceDashboardPage() {
       {/* Production Line 1 */}
       <ProductionLineSection
         lineInfo={getLineInfo(1)}
-        devices={devicesLine1}
-        metrics={calculateMetrics(devicesLine1)}
+        devices={enhancedDevicesLine1}
+        metrics={calculateMetrics(enhancedDevicesLine1)}
         onReset={() => handleResetLine(1)}
         isResetting={isResetting[1] || false}
         showResetButton={true}
@@ -301,8 +351,8 @@ export default function DeviceDashboardPage() {
       {/* Production Line 2 */}
       <ProductionLineSection
         lineInfo={getLineInfo(2)}
-        devices={devicesLine2}
-        metrics={calculateMetrics(devicesLine2)}
+        devices={enhancedDevicesLine2}
+        metrics={calculateMetrics(enhancedDevicesLine2)}
         onReset={() => handleResetLine(2)}
         isResetting={isResetting[2] || false}
         showResetButton={true}
@@ -312,8 +362,8 @@ export default function DeviceDashboardPage() {
       {/* Production Line 5 */}
       <ProductionLineSection
         lineInfo={getLineInfo(5)}
-        devices={devicesLine5}
-        metrics={calculateMetrics(devicesLine5)}
+        devices={enhancedDevicesLine5}
+        metrics={calculateMetrics(enhancedDevicesLine5)}
         onReset={() => handleResetLine(5)}
         isResetting={isResetting[5] || false}
         showResetButton={true}
@@ -323,8 +373,8 @@ export default function DeviceDashboardPage() {
       {/* Production Line 6 */}
       <ProductionLineSection
         lineInfo={getLineInfo(6)}
-        devices={devicesLine6}
-        metrics={calculateMetrics(devicesLine6)}
+        devices={enhancedDevicesLine6}
+        metrics={calculateMetrics(enhancedDevicesLine6)}
         onReset={() => handleResetLine(6)}
         isResetting={isResetting[6] || false}
         showResetButton={true}
