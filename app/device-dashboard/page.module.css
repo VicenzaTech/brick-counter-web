@@ -90,9 +90,6 @@
 
 .sectionHeader {
   margin-bottom: 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 
 .sectionTitle {
@@ -106,47 +103,6 @@
   padding: 1rem 1.5rem;
   border-radius: 8px;
   margin: 0;
-}
-
-.resetButton {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem 1.5rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
-}
-
-.resetButton:hover:not(:disabled) {
-  background: #bb2d3b;
-  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
-  transform: translateY(-1px);
-}
-
-.resetButton:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.resetButton .spinning {
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 .resetMessage {
