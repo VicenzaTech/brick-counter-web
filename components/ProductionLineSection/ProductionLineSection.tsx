@@ -1,6 +1,5 @@
 import { Cpu, RotateCcw, Settings } from 'lucide-react';
 import DeviceAnalyticsCard from '../DeviceAnalyticsCard/DeviceAnalyticsCard';
-import LossMetricCard from '../LossMetricCard/LossMetricCard';
 import styles from './ProductionLineSection.module.css';
 
 interface DeviceData {
@@ -28,21 +27,9 @@ interface ProductionLineInfo {
   status?: string;
 }
 
-interface MetricsData {
-  haophiMoc: number;
-  haophiNung: number;
-  haophiTruocMai: number;
-  haophiHoanThien: number;
-  haophiMocVariant: 'primary' | 'success' | 'warning' | 'danger' | 'muted';
-  haophiNungVariant: 'primary' | 'success' | 'warning' | 'danger' | 'muted';
-  haophiTruocMaiVariant: 'primary' | 'success' | 'warning' | 'danger' | 'muted';
-  haophiHoanThienVariant: 'primary' | 'success' | 'warning' | 'danger' | 'muted';
-}
-
 interface ProductionLineSectionProps {
   lineInfo: ProductionLineInfo;
   devices: DeviceData[];
-  metrics: MetricsData;
   onReset?: () => void;
   isResetting?: boolean;
   showResetButton?: boolean;
@@ -52,7 +39,6 @@ interface ProductionLineSectionProps {
 export default function ProductionLineSection({
   lineInfo,
   devices,
-  metrics,
   onReset,
   isResetting = false,
   showResetButton = true,
@@ -122,28 +108,6 @@ export default function ProductionLineSection({
             deviceName={device.name}
           />
         ))}
-      </div>
-
-      {/* Metrics Section */}
-      <div className={styles.metricsSection}>
-        <div className={styles.metricsGrid}>
-          <LossMetricCard
-            title="Hao phí mộc"
-            value={metrics.haophiMoc}
-          />
-          <LossMetricCard
-            title="Hao phí nung"
-            value={metrics.haophiNung}
-          />
-          <LossMetricCard
-            title="Hao phí trước mài"
-            value={metrics.haophiTruocMai}
-          />
-          <LossMetricCard
-            title="Hao phí hoàn thiện"
-            value={metrics.haophiHoanThien}
-          />
-        </div>
       </div>
     </div>
   );

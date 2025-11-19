@@ -177,40 +177,6 @@ export default function DeviceDashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Calculate metrics for a device list
-  const calculateMetrics = (devices: DeviceData[]) => {
-    const sauMe1 = devices.find(d => d.id.includes('SAU-ME'))?.count || 0;
-    const sauMe2 = devices.find(d => d.id.includes('SAU-ME') && d.id !== devices.find(d2 => d2.id.includes('SAU-ME'))?.id)?.count || 0;
-    const truocLn1 = devices.find(d => d.id.includes('TRUOC-LN'))?.count || 0;
-    const truocLn2 = devices.filter(d => d.id.includes('TRUOC-LN'))[1]?.count || 0;
-    const sauLn = devices.find(d => d.id.includes('SAU-LN'))?.count || 0;
-    const truocMm = devices.find(d => d.id.includes('TRUOC-MM'))?.count || 0;
-    const truocDh = devices.find(d => d.id.includes('TRUOC-DH'))?.count || 0;
-
-    const haophiMoc = (truocLn1 + truocLn2) - (sauMe1 + sauMe2);
-    const haophiNung = sauLn - (truocLn1 + truocLn2);
-    const haophiTruocMai = truocMm - sauLn;
-    const haophiHoanThien = truocDh - truocMm;
-
-    const getVariant = (value: number): 'primary' | 'success' | 'warning' | 'danger' | 'muted' => {
-      if (value < 0) return 'success';
-      if (value === 0) return 'muted';
-      if (value > 0 && value <= 100) return 'warning';
-      return 'danger';
-    };
-
-    return {
-      haophiMoc,
-      haophiNung,
-      haophiTruocMai,
-      haophiHoanThien,
-      haophiMocVariant: getVariant(haophiMoc),
-      haophiNungVariant: getVariant(haophiNung),
-      haophiTruocMaiVariant: getVariant(haophiTruocMai),
-      haophiHoanThienVariant: getVariant(haophiHoanThien),
-    };
-  };
-
   // Handle reset for specific line
   const handleResetLine = async (lineId: number) => {
     if (!confirm(`Bạn có chắc chắn muốn reset toàn bộ thiết bị của Dây chuyền ${lineId}?\n\nTất cả số đếm sẽ về 0.`)) {
@@ -341,7 +307,6 @@ export default function DeviceDashboardPage() {
       <ProductionLineSection
         lineInfo={getLineInfo(1)}
         devices={enhancedDevicesLine1}
-        metrics={calculateMetrics(enhancedDevicesLine1)}
         onReset={() => handleResetLine(1)}
         isResetting={isResetting[1] || false}
         showResetButton={true}
@@ -352,7 +317,6 @@ export default function DeviceDashboardPage() {
       <ProductionLineSection
         lineInfo={getLineInfo(2)}
         devices={enhancedDevicesLine2}
-        metrics={calculateMetrics(enhancedDevicesLine2)}
         onReset={() => handleResetLine(2)}
         isResetting={isResetting[2] || false}
         showResetButton={true}
@@ -363,7 +327,6 @@ export default function DeviceDashboardPage() {
       <ProductionLineSection
         lineInfo={getLineInfo(5)}
         devices={enhancedDevicesLine5}
-        metrics={calculateMetrics(enhancedDevicesLine5)}
         onReset={() => handleResetLine(5)}
         isResetting={isResetting[5] || false}
         showResetButton={true}
@@ -374,7 +337,6 @@ export default function DeviceDashboardPage() {
       <ProductionLineSection
         lineInfo={getLineInfo(6)}
         devices={enhancedDevicesLine6}
-        metrics={calculateMetrics(enhancedDevicesLine6)}
         onReset={() => handleResetLine(6)}
         isResetting={isResetting[6] || false}
         showResetButton={true}
