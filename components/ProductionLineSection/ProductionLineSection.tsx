@@ -1,6 +1,5 @@
 import { Cpu, RotateCcw, Settings } from 'lucide-react';
 import DeviceAnalyticsCard from '../DeviceAnalyticsCard/DeviceAnalyticsCard';
-import LossMetricCard from '../LossMetricCard/LossMetricCard';
 import styles from './ProductionLineSection.module.css';
 import { Button } from '../Button/Button';
 

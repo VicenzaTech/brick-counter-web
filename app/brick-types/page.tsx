@@ -221,6 +221,8 @@ export default function BrickTypesPage() {
     const handleOpenLineSetting = (line: ProductionLine) => {
         setSelectedLine(line);
         const activeBrick = getActiveBrickOnLine(line.id);
+        // Nếu đang có brick type active, không cho chọn brick khác
+        // Phải dừng sản xuất trước
         setSelectedBrickForLine(activeBrick?.id || null);
         setSelectedStatus(activeBrick?.activeStatus === 'paused' ? 'paused' : 'producing');
         setError(null);
@@ -263,20 +265,42 @@ export default function BrickTypesPage() {
         const activeBrick = getActiveBrickOnLine(lineId);
         if (!activeBrick) return;
 
+        console.log(`🛑 Stopping production:`, { lineId, brickId: activeBrick.id, brickName: activeBrick.name });
+
         if (!confirm(`Bạn có chắc chắn muốn dừng sản xuất "${activeBrick.name}" trên dây chuyền này?`)) {
             return;
         }
 
         try {
+            const payload = { productionLineId: lineId };
+            console.log(`📤 Sending deactivate request:`, payload);
+            
             const res = await apiFetch(`${API_URL}/brick-types/${activeBrick.id}/deactivate`, {
                 method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
             });
 
+            console.log(`📥 Response status:`, res.status);
+
             if (res.ok) {
+                console.log(`✅ Deactivated successfully`);
+                
+                // Cập nhật state ngay lập tức để hiển thị "Không hoạt động"
+                setProductionLines(prevLines => 
+                    prevLines.map(line => 
+                        line.id === lineId 
+                            ? { ...line, activeBrickTypeId: undefined, productionStatus: 'stopped' as const }
+                            : line
+                    )
+                );
+                
+                // Refresh data từ server để đảm bảo sync
                 await fetchBrickTypes();
                 await fetchProductionLines();
             } else {
                 const errorData = await res.json();
+                console.error(`❌ Deactivate failed:`, errorData);
                 setError(errorData.message || 'Lỗi khi dừng sản xuất');
             }
         } catch (error: any) {
@@ -612,6 +636,12 @@ export default function BrickTypesPage() {
                             <div className={styles.brickInfo}>
                                 <h3>🏭 {selectedLine.name}</h3>
                                 <p>Chọn dòng gạch sản xuất trên dây chuyền này</p>
+                                {getActiveBrickOnLine(selectedLine.id) && (
+                                    <div className={styles.warningBox} style={{ marginTop: '10px' }}>
+                                        ⚠️ Dây chuyền đang có dòng gạch "{getActiveBrickOnLine(selectedLine.id)?.name}". 
+                                        Vui lòng dừng sản xuất trước khi chọn dòng gạch khác.
+                                    </div>
+                                )}
                             </div>
 
                             <div className={styles.formGroup}>
@@ -623,6 +653,7 @@ export default function BrickTypesPage() {
                                     value={selectedBrickForLine || ''}
                                     onChange={(e) => setSelectedBrickForLine(Number(e.target.value))}
                                     className={styles.select}
+                                    disabled={!!getActiveBrickOnLine(selectedLine.id)}
                                     required
                                 >
                                     <option value="">-- Chọn dòng gạch --</option>
