@@ -1,0 +1,130 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  background-color: white;
+  height: 100%;
+  padding: 15px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(18, 27, 49, 0.12);
+}
+
+.lineList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.lineCard {
+  background: white;
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e5e7eb;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.lineCardWrapper {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+}
+
+.lineCard:hover {
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+  transform: translateY(-1px);
+}
+
+.lineCardActive {
+  border-color: #0d6efd;
+  background: linear-gradient(135deg, #eff6ff 0%, #ffffff 100%);
+}
+
+.lineCardInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  text-align: left;
+}
+
+.lineCardName {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.lineBrickType {
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.lineBrickTypeName {
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.backButton {
+  background-color: white;
+  border-radius: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 20px;
+  border: 1px solid #e0e0e0;
+  box-shadow: 0 2px 8px rgba(18, 27, 49, 0.12);
+  transition: color ease 0.3s;
+  transition: transform ease 0.3s;
+  transition: color ease 0.4s;
+  transition: background ease 0.4s;
+  gap: 6px;
+}
+
+.backButton:hover {
+  box-shadow: 0 2px 8px rgba(8, 11, 20, 0.12);
+  transform: translateY(-2);
+  background-color: #0b5ed7;
+  color: white;
+}
+
+.backButton svg {
+  margin-bottom: -2px;
+  height: 16px;
+  width: 16px;
+}
+
+.sidebarHeader {
+  margin-bottom: 0.25rem;
+}
+
+.sidebarTitle {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  margin: 0 0 0.125rem 0;
+}
+
+.sidebarSub {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.lineInfo {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    flex-direction: column;
+    gap: .5rem;
+}

@@ -1,7 +1,190 @@
 .container {
   padding: 2rem;
-  background: linear-gradient(135deg, #c8cbda 0%, #985ed1 100%);
   min-height: 100vh;
+}
+
+.mainLayout {
+  display: grid;
+  grid-template-columns: 300px minmax(0, 1fr);
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.lineCardStatus {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.lineCardIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #eff6ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0d6efd;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.mainContent {
+  background: white;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+  margin-bottom: 1rem;
+}
+
+.tabContent {
+  margin-top: 0.5rem;
+}
+
+.lineSettingsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.lineSettingsHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.lineSettingsTitle {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.25rem 0;
+}
+
+.lineSettingsSubtitle {
+  font-size: 0.85rem;
+  color: #4b5563;
+  margin: 0 0 0.25rem 0;
+}
+
+.lineSettingsStatus {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.lineSettingsActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+
+.settingsBlock {
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  padding: 1rem 1.25rem;
+  background-color: #f9fafb;
+}
+
+.settingsBlockTitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 0.25rem 0;
+}
+
+.settingsBlockDescription {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 0 0 0.75rem 0;
+}
+
+.settingsDevicesTable {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.settingsDevicesHeader,
+.settingsDevicesRow {
+  display: grid;
+  grid-template-columns: 1.2fr 1.4fr 1fr 1fr;
+  gap: 0.75rem;
+  font-size: 0.8rem;
+  align-items: center;
+}
+
+.settingsDevicesHeader {
+  font-weight: 600;
+  color: #4b5563;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.settingsDevicesRow {
+  padding: 0.25rem 0;
+  color: #111827;
+}
+
+.settingsDevicesEmpty {
+  font-size: 0.8rem;
+  color: #9ca3af;
+  padding-top: 0.5rem;
+}
+
+.settingsDevicesGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+}
+
+.positionMap {
+  display: flex;
+  gap: 1.5rem;
+  align-items: flex-start;
+  overflow-x: auto;
+  padding-top: 0.5rem;
+}
+
+.positionSlot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 64px;
+  font-size: 0.8rem;
+  color: #111827;
+}
+
+.positionIndex {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #0d6efd;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.positionLine {
+  width: 2px;
+  height: 36px;
+  background: #d1d5db;
+  margin-bottom: 0.25rem;
+}
+
+.positionDeviceId {
+  font-size: 0.75rem;
+  text-align: center;
+  color: #374151;
 }
 
 .header {
@@ -56,7 +239,8 @@
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
   }
   50% {
@@ -86,6 +270,42 @@
   font-size: 0.875rem;
   color: #6c757d;
   font-weight: 500;
+}
+
+.overviewGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.75rem;
+}
+
+.overviewCard {
+  background: white;
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e5e7eb;
+}
+
+.overviewLabel {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  margin: 0 0 0.25rem 0;
+}
+
+.overviewValue {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 0.1rem 0;
+}
+
+.overviewSub {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin: 0;
 }
 
 .sectionHeader {
@@ -414,4 +634,10 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+}
+
+@media (max-width: 1024px) {
+  .mainLayout {
+    grid-template-columns: 1fr;
+  }
 }

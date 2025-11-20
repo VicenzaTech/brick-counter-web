@@ -65,59 +65,7 @@
   align-items: center;
 }
 
-.configButton {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #6c757d;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem 1.5rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(108, 117, 125, 0.2);
-  white-space: nowrap;
-}
-
-.configButton:hover {
-  background: #5a6268;
-  box-shadow: 0 4px 8px rgba(108, 117, 125, 0.3);
-  transform: translateY(-1px);
-}
-
-.resetButton {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #dc3545;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 0.75rem 1.5rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
-  white-space: nowrap;
-}
-
-.resetButton:hover:not(:disabled) {
-  background: #bb2d3b;
-  box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
-  transform: translateY(-1px);
-}
-
-.resetButton:disabled {
-  background: #6c757d;
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.resetButton .spinning {
+.spinning {
   animation: spin 1s linear infinite;
 }
 
@@ -132,14 +80,27 @@
 
 .deviceGrid {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1rem;
   margin-bottom: 2rem;
 }
 
+.deviceButton {
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.deviceButton:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+}
+
 @media (max-width: 1400px) {
   .deviceGrid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
   }
 }
 
@@ -147,6 +108,59 @@
   .deviceGrid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+
+.addDeviceCard {
+  border-radius: 12px;
+  border: 1px dashed rgba(148, 163, 184, 0.9);
+  background: radial-gradient(130% 160% at 0% 0%, #eef2ff 0%, #f9fafb 45%, #ffffff 100%);
+  padding: 1.25rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.2s ease, border-color 0.2s ease,
+    box-shadow 0.2s ease, transform 0.05s ease;
+}
+
+.addDeviceCard:hover {
+  border-color: #4f46e5;
+  background: radial-gradient(140% 170% at 0% 0%, #e0e7ff 0%, #f9fafb 45%, #ffffff 100%);
+  box-shadow: 0 12px 32px rgba(79, 70, 229, 0.25);
+  transform: translateY(-2px);
+}
+
+.addDeviceIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  background: #111827;
+  color: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+.addDeviceContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.addDeviceTitle {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #111827;
+}
+
+.addDeviceText {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #4b5563;
 }
 
 .metricsSection {

@@ -106,6 +106,7 @@
 .icon {
   font-size: 1.5rem;
   line-height: 1;
+  color: #22c55e;
 }
 
 .name {
@@ -113,6 +114,43 @@
   font-weight: 700;
   color: #1e293b;
   letter-spacing: 0.3px;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.deviceId {
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.position {
+  font-size: 0.75rem;
+  color: #64748b;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  background: #eff6ff;
+}
+
+.trendBadge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  background: #ecfdf5;
+  color: #047857;
 }
 
 .metrics {

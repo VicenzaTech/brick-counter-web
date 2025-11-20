@@ -1,0 +1,131 @@
+.index {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #0d6efd;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.slot {
+  user-select: none;
+  padding: 15px;
+  background-color: white;
+  border-radius: 15px;
+  border: 1px solid #4f46e5;
+  box-shadow: 0px 0px 10px #cfcfcf;
+  position: relative;
+  background-color: #eef2ff;
+  flex: auto;
+  width: 100%;
+  z-index: 10;
+}
+
+.slotSelected {
+  border-color: #0d6efd;
+  background-color: #e0ebff;
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35);
+}
+
+.slot + .slot::before {
+  content: "";
+  position: absolute;
+  top: 15px;
+  right: 100%;
+  width: 20px;
+  height: 2px;
+  background-color: #cfcfcf;
+}
+
+.device {
+  display: flex;
+  flex-direction: column;
+  z-index: 1;
+  gap: 4px;
+}
+
+.title {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #000;
+}
+.desc {
+  font-size: 0.85rem;
+}
+
+.metaRow {
+  margin-top: 0.35rem;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.metaText {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.actions {
+  margin-top: 0.5rem;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.actionButton,
+.actionButtonDanger {
+  border: none;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.actionButton {
+  background-color: #e5f0ff;
+  color: #1d4ed8;
+}
+
+.actionButton:hover {
+  background-color: #dbeafe;
+}
+
+.actionButtonDanger {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.actionButtonDanger:hover {
+  background-color: #fecaca;
+}
+
+.header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.config {
+  cursor: pointer;
+  background-color: white;
+  padding: 2px;
+  border-radius: 100%;
+  height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #ccc;
+  transition: transform ease 0.3s;
+}
+
+.config:hover {
+  transform: scale(1.05);
+  color: #0d6efd;
+  border-color: #0d6efd;
+}

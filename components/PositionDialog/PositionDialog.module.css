@@ -1,7 +1,36 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  z-index: 999s;
+}
+
+.metaRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.metaLabel {
+  font-weight: 500;
+}
+
+.metaValue {
+  color: #111827;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
 .primaryButton,
 .secondaryButton {
-  padding: 0.75rem 0.9rem;
-  border-radius: 15px;
+  padding: 0.45rem 0.9rem;
+  border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 500;
   border: 1px solid transparent;
@@ -33,16 +62,3 @@
   background-color: #f3f4f6;
 }
 
-.primaryButton:disabled,
-.secondaryButton:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
-}
-
-.primaryButton:disabled:hover,
-.secondaryButton:disabled:hover {
-  background-color: inherit;
-  border-color: inherit;
-}
