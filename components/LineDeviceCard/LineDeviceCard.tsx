@@ -21,6 +21,14 @@ export default function LineDeviceCard({
     onEdit,
     onDelete,
 }: LineDeviceCardProps) {
+    const rawExtra: any = device.extraInfo || {};
+    const telemetry = rawExtra.telemetry;
+    const interval = rawExtra.interval_message_time;
+    const commands = rawExtra.commands;
+    const telemetryTopic = telemetry?.topic || rawExtra.sub_topic || '-';
+    const telemetryQos =
+        telemetry?.qos ?? rawExtra.qosDefault ?? rawExtra.qos ?? undefined;
+
     const status =
         device.status ||
         (typeof isRunning === 'boolean' ? (isRunning ? 'online' : 'offline') : undefined);
@@ -49,8 +57,13 @@ export default function LineDeviceCard({
             </div>
             <div className={styles.topicInfo}>
                 <div className={styles.topicLabel}>Topic telemetry</div>
-                <div className={styles.topicValue}>
-                    {device.extraInfo?.sub_topic || '-'}
+                <div className={styles.topicValue}>{telemetryTopic}</div>
+                <div className={styles.topicMeta}>
+                    <span>QoS: {telemetryQos ?? '-'}</span>
+                    <span className={styles.metaSep}>•</span>
+                    <span>Chu kỳ: {interval ? `${interval}s` : '-'}</span>
+                    <span className={styles.metaSep}>•</span>
+                    <span>Lệnh: {commands?.length ?? 0}</span>
                 </div>
             </div>
             <div className={styles.statusCol}>
@@ -72,4 +85,3 @@ export default function LineDeviceCard({
         </div>
     );
 }
-

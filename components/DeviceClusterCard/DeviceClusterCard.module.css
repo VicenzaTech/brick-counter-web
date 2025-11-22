@@ -1,0 +1,159 @@
+.row {
+  display: grid;
+  grid-template-columns: 2.2fr 1.4fr 3fr 2fr 1.4fr;
+  gap: 0.75rem 1rem;
+  align-items: flex-start;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.colMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.code {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.description {
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+.colMt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+}
+
+.mtCode {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-weight: 600;
+  border: 1px solid #c7d2fe;
+}
+
+.mtName {
+  color: #4b5563;
+}
+
+.colTelemetry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.label {
+  color: #6b7280;
+}
+
+.value {
+  color: #111827;
+  word-break: break-all;
+}
+
+.metaLine {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+}
+
+.metaSep {
+  color: #9ca3af;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  font-size: 0.75rem;
+}
+
+.colCommands {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.colActions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.secondaryButton,
+.dangerButton {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.secondaryButton {
+  background: #fff;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+
+.secondaryButton:hover {
+  background: #f9fafb;
+}
+
+.dangerButton {
+  background: #fef2f2;
+  border-color: #fecdd3;
+  color: #b91c1c;
+}
+
+.dangerButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 1024px) {
+  .row {
+    grid-template-columns: 1.8fr 1.5fr 2.7fr;
+    grid-template-rows: auto auto;
+  }
+
+  .colCommands {
+    grid-column: 1 / span 2;
+  }
+
+  .colActions {
+    grid-column: 3 / span 1;
+  }
+}
+
+@media (max-width: 768px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+
+  .colActions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+}
+

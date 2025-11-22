@@ -63,6 +63,19 @@
   text-overflow: ellipsis;
 }
 
+.topicMeta {
+  margin-top: 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+.metaSep {
+  color: #9ca3af;
+}
+
 .statusCol {
   display: flex;
   flex-direction: column;

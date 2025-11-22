@@ -1,14 +1,39 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Cpu, RotateCcw, Settings } from 'lucide-react';
-import DeviceAnalyticsCard from '../DeviceAnalyticsCard/DeviceAnalyticsCard';
 import styles from './ProductionLineSection.module.css';
 import { Button } from '../Button/Button';
+import LossMetricCard from '../LossMetricCard/LossMetricCard';
+import type { RawTelemetryPayload } from '@/hooks/useProductionLineWebsocket';
+import { LinePositionsStrip } from './LinePositionsStrip';
+import { PositionDevicesPanel } from './PositionDevicesPanel';
+import { DeviceInfo } from '@/app/device-dashboard/page';
+
+export interface DeviceRuntimeInfo {
+    deviceId: string;
+    name: string;
+    count: number;
+    errorCount: number;
+    lastUpdated: string | null;
+    rssi?: number;
+    isRunning: boolean;
+}
+
+export interface PositionRuntimeInfo {
+    positionId: number;
+    totalCount: number;
+    totalErrorCount: number;
+    status: PositionStatus;
+    id: number;
+    name: string;
+    description?: string;
+    index?: number;
+}
 
 interface DeviceData {
     id: string;
     name: string;
     count: number;
     lastUpdated: string;
-    // Analytics data
     speedPerMinute?: number;
     speedPerHour?: number;
     isRunning?: boolean;
@@ -39,27 +64,133 @@ interface MetricsData {
     haophiHoanThienVariant: 'primary' | 'success' | 'warning' | 'danger' | 'muted';
 }
 
+/** Device gắn với 1 Position */
+export interface PositionDeviceInfo {
+    id: number;
+    deviceId: string;
+    name: string;
+}
+
+export interface PositionInfo {
+    id: number;
+    name: string;
+    description?: string;
+    index?: number;
+    devices?: PositionDeviceInfo[];
+}
+
+export type PositionStatus = 'running' | 'idle' | 'error' | 'unknown';
+
 interface ProductionLineSectionProps {
     lineInfo: ProductionLineInfo;
-    devices: DeviceData[];
     metrics: MetricsData;
+    devices?: DeviceData[];
+    linePositions: PositionInfo[];
+    telemetryByDevice: Record<string, RawTelemetryPayload>,
     onReset?: () => void;
     isResetting?: boolean;
     showResetButton?: boolean;
     onConfig?: () => void;
-    onDeviceClick?: (device: DeviceData) => void;
+    onDeviceClick?: (device: { deviceId: string; name: string }) => void;
+    selectedPositionId?: number;
+    onPositionChange?: (positionId: number) => void;
 }
 
 export default function ProductionLineSection({
     lineInfo,
-    devices,
     metrics,
+    linePositions,
     onReset,
     isResetting = false,
     showResetButton = true,
+    telemetryByDevice,
     onConfig,
     onDeviceClick,
+    selectedPositionId,
+    onPositionChange,
 }: ProductionLineSectionProps) {
+    const [internalPositionId, setInternalPositionId] = useState<number | null>(
+        null,
+    );
+    const [internalDeviceId, setInternalDeviceId] = useState<string | null>(null);
+
+    // Chọn position mặc định
+    useEffect(() => {
+        if (!linePositions.length) {
+            setInternalPositionId(null);
+            setInternalDeviceId(null);
+            return;
+        }
+
+        const allIds = linePositions.map((p) => p.id);
+        const externalId =
+            selectedPositionId && allIds.includes(selectedPositionId)
+                ? selectedPositionId
+                : null;
+
+        const nextId =
+            externalId ??
+            internalPositionId ??
+            (linePositions.length > 0 ? linePositions[0].id : null);
+
+        if (nextId !== internalPositionId) {
+            setInternalPositionId(nextId);
+            setInternalDeviceId(null);
+        }
+    }, [linePositions, selectedPositionId, internalPositionId]);
+
+    const activePositionId =
+        selectedPositionId ?? internalPositionId ?? linePositions[0]?.id;
+
+    const activePosition = useMemo(
+        () => linePositions.find((p) => p.id === activePositionId) ?? null,
+        [linePositions, activePositionId],
+    );
+
+    const handleSelectPosition = (posId: number) => {
+        if (onPositionChange) {
+            onPositionChange(posId);
+        } else {
+            setInternalPositionId(posId);
+            setInternalDeviceId(null);
+        }
+    };
+
+    const handleSelectDevice = (dev: PositionDeviceInfo) => {
+        setInternalDeviceId(dev.deviceId);
+        onDeviceClick?.({ deviceId: dev.deviceId, name: dev.name });
+    };
+
+    // // ====== MAPPING TELEMETRY → POSITION RUNTIME ======
+    const telemetryByPosition: Record<number, PositionRuntimeInfo> = useMemo(() => {
+        const result: Record<number, PositionRuntimeInfo> = {};
+        linePositions.forEach((pos) => {
+            const mappedDevices: any = pos.devices
+            let sumCount = 0
+            let sumError = 0
+            mappedDevices.forEach(device => {
+                const existKey = Object.keys(telemetryByDevice).includes(device.deviceId)
+                if (existKey) {
+                    const currentDevice = telemetryByDevice[device.deviceId]
+                    // console.log(currentDevice)
+                    sumCount += (currentDevice?.metrics ? (currentDevice?.metrics?.count) : 0)
+                    sumError += (currentDevice?.metrics ? (currentDevice?.metrics?.error_count) : 0)
+                }
+            })
+            result[pos.id] = {
+                totalCount: sumCount,
+                totalErrorCount: sumError,
+                positionId: pos.id,
+                status: 'unknown',
+                id: pos.id,
+                name: pos.name,
+                index: pos.index,
+                description: pos.description
+            }
+        });
+        return result;
+    }, [linePositions, telemetryByDevice]);
+
     return (
         <div className={styles.section}>
             {/* Header dây chuyền */}
@@ -69,16 +200,24 @@ export default function ProductionLineSection({
                         <Cpu size={24} />
                         {lineInfo.name}
                     </h2>
+
                     {lineInfo.brickType && (
                         <div className={styles.brickTypeInfo}>
-                            <span className={styles.brickTypeLabel}>Đang sản xuất:</span>
-                            <span className={styles.brickTypeName}>{lineInfo.brickType.name}</span>
+                            <span className={styles.brickTypeLabel}>
+                                Đang sản xuất:
+                            </span>
+                            <span className={styles.brickTypeName}>
+                                {lineInfo.brickType.name}
+                            </span>
                             {lineInfo.brickType.description && (
-                                <span className={styles.brickTypeDesc}>({lineInfo.brickType.description})</span>
+                                <span className={styles.brickTypeDesc}>
+                                    ({lineInfo.brickType.description})
+                                </span>
                             )}
                         </div>
                     )}
                 </div>
+
                 {showResetButton && (
                     <div className={styles.headerButtons}>
                         {onConfig && (
@@ -91,15 +230,18 @@ export default function ProductionLineSection({
                                 Cấu hình
                             </Button>
                         )}
+
                         {onReset && (
                             <Button
-                                typeBtn='secondaryButton'
+                                typeBtn="secondaryButton"
                                 onClick={onReset}
                                 disabled={isResetting}
                                 className={styles.resetButton}
-
                             >
-                                <RotateCcw size={18} className={isResetting ? styles.spinning : ''} />
+                                <RotateCcw
+                                    size={18}
+                                    className={isResetting ? styles.spinning : ''}
+                                />
                                 {isResetting ? 'Đang reset...' : 'Reset toàn bộ thiết bị'}
                             </Button>
                         )}
@@ -107,57 +249,32 @@ export default function ProductionLineSection({
                 )}
             </div>
 
-            {/* Lưới thiết bị */}
-            <div className={styles.deviceGrid}>
-                {devices.map((device) => (
-                    <button
-                        key={device.id}
-                        type="button"
-                        className={styles.deviceButton}
-                        onClick={() => onDeviceClick && onDeviceClick(device)}
-                    >
-                        <DeviceAnalyticsCard
-                            device={{
-                                deviceId: device.id,
-                                position: device.position || '',
-                                currentCount: device.count,
-                                speedPerMinute: device.speedPerMinute || 0,
-                                speedPerHour: device.speedPerHour || 0,
-                                isRunning: device.isRunning ?? true,
-                                trend: device.trend || 'stable',
-                                idleTimeSeconds: device.idleTimeSeconds || 0,
-                                lastUpdated: device.lastUpdated,
-                            }}
-                            deviceName={device.name}
-                        />
-                    </button>
-                ))}
+            <LinePositionsStrip
+                linePositions={linePositions}
+                activePositionId={activePositionId ?? null}
+                onSelectPosition={handleSelectPosition}
+                telemetryByPosition={telemetryByPosition}
+            />
 
-                {/* Ô thêm thiết bị */}
-                <button
-                    type="button"
-                    className={styles.addDeviceCard}
-                    onClick={() => {
-                        alert('TODO: Thêm thiết bị mới vào dây chuyền');
-                    }}
-                >
-                    <div className={styles.addDeviceIcon}>+</div>
-                    <div className={styles.addDeviceContent}>
-                        <p className={styles.addDeviceTitle}>Thêm thiết bị</p>
-                        <p className={styles.addDeviceText}>
-                            Tạo mới hoặc gán thêm thiết bị vào dây chuyền này.
-                        </p>
-                    </div>
-                </button>
-            </div>
+            <PositionDevicesPanel
+                activePosition={activePosition}
+                selectedDeviceId={internalDeviceId}
+                telemetryByDevice={telemetryByDevice ?? {}}
+                onSelectDevice={handleSelectDevice}
+            />
 
-            {/* Khu vực hao phí */}
             <div className={styles.metricsSection}>
                 <div className={styles.metricsGrid}>
                     <LossMetricCard title="Hao phí mộc" value={metrics.haophiMoc} />
                     <LossMetricCard title="Hao phí nung" value={metrics.haophiNung} />
-                    <LossMetricCard title="Hao phí trước mài" value={metrics.haophiTruocMai} />
-                    <LossMetricCard title="Hao phí hoàn thiện" value={metrics.haophiHoanThien} />
+                    <LossMetricCard
+                        title="Hao phí trước mài"
+                        value={metrics.haophiTruocMai}
+                    />
+                    <LossMetricCard
+                        title="Hao phí hoàn thiện"
+                        value={metrics.haophiHoanThien}
+                    />
                 </div>
             </div>
         </div>

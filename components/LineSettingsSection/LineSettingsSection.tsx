@@ -29,6 +29,11 @@ import { SelectField } from '@/components/SelectField/SelectField';
 import { PositionDialog } from '@/components/PositionDialog/PositionDialog';
 import { DeviceDialog } from '@/components/DeviceDialog/DeviceDialog';
 
+
+/* -----------------------
+    Types & Helpers
+------------------------*/
+
 interface DeviceData {
     id: string;
     name: string;
@@ -78,6 +83,11 @@ function sortPositionByIndex(positions: PositionInfo[]): PositionInfo[] {
     });
 }
 
+
+/* -----------------------
+        Component
+------------------------*/
+
 export default function LineSettingsSection({
     lineInfo,
     devices,
@@ -92,11 +102,10 @@ export default function LineSettingsSection({
     onEditPosition,
     onDeletePosition,
 }: LineSettingsSectionProps) {
+
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555/api';
 
-    const [positions, setPositions] = useState<PositionInfo[]>(
-        sortPositionByIndex(linePositions),
-    );
+    const [positions, setPositions] = useState<PositionInfo[]>(sortPositionByIndex(linePositions));
     const [deviceFilter, setDeviceFilter] = useState<'all' | 'position'>('all');
     const [selectedPositionId, setSelectedPositionId] = useState<number | null>(null);
     const [activeDevice, setActiveDevice] = useState<DeviceInfo | null>(null);
@@ -106,11 +115,15 @@ export default function LineSettingsSection({
         position: PositionInfo | null;
     } | null>(null);
 
+    /* ---------- Reorder State ---------- */
+
     const [pendingPositions, setPendingPositions] = useState<PositionInfo[] | null>(null);
     const [reorderInfo, setReorderInfo] = useState<{
         from: PositionInfo;
         to: PositionInfo;
+        newIndex: number;
     } | null>(null);
+
     const [isReordering, setIsReordering] = useState(false);
 
     const [deviceDialog, setDeviceDialog] = useState<{
@@ -118,17 +131,24 @@ export default function LineSettingsSection({
         device: DeviceInfo | null;
     } | null>(null);
 
+
+    /* ---------- Sync changes từ props ---------- */
+
     useEffect(() => {
         setPositions(sortPositionByIndex(linePositions));
     }, [linePositions]);
 
+
+    /* ---------- DnD Setup ---------- */
+
     const sensors = useSensors(
         useSensor(PointerSensor, {
-            activationConstraint: {
-                distance: 4,
-            },
+            activationConstraint: { distance: 4 },
         }),
     );
+
+
+    /* ---------- Memo ---------- */
 
     const selectedPosition = useMemo(
         () => positions.find((p) => p.id === selectedPositionId) || null,
@@ -146,14 +166,19 @@ export default function LineSettingsSection({
     }, [positions]);
 
     const filteredDevices = useMemo(() => {
-        if (deviceFilter === 'all' || !selectedPositionId) {
-            return devices;
-        }
-        const targetPosition = positions.find((p) => p.id === selectedPositionId);
-        if (!targetPosition) return [];
-        const allowedIds = new Set((targetPosition.devices || []).map((d) => d.id));
-        return devices.filter((d) => allowedIds.has(d.id));
+        if (deviceFilter === 'all' || !selectedPositionId) return devices;
+
+        const targetPos = positions.find((p) => p.id === selectedPositionId);
+        if (!targetPos) return [];
+
+        const deviceIds = new Set((targetPos.devices || []).map((d) => d.id));
+        return devices.filter((d) => deviceIds.has(d.id));
     }, [deviceFilter, devices, positions, selectedPositionId]);
+
+
+    /* -----------------------
+         REORDER HANDLERS
+    ------------------------*/
 
     const handleSelectPosition = (position: PositionInfo) => {
         setSelectedPositionId(position.id);
@@ -161,49 +186,48 @@ export default function LineSettingsSection({
     };
 
     const handleDragEnd = (event: DragEndEvent) => {
+        if (isReordering) return; // tránh spam khi đang gửi request
+
         const { active, over } = event;
         if (!over || active.id === over.id) return;
 
-        const oldIndex = positions.findIndex((p) => p.id === active.id);
-        const newIndex = positions.findIndex((p) => p.id === over.id);
-        if (oldIndex === -1 || newIndex === -1) return;
+        const oldIdx = positions.findIndex((p) => p.id === active.id);
+        const newIdx = positions.findIndex((p) => p.id === over.id);
+        if (oldIdx === -1 || newIdx === -1) return;
 
-        const reordered = arrayMove(positions, oldIndex, newIndex).map((pos, idx) => ({
-            ...pos,
-            index: idx + 1,
-        }));
+        const reordered = arrayMove(positions, oldIdx, newIdx);
+        const withIndex = reordered.map((pos, idx) => ({ ...pos, index: idx + 1 }));
 
-        setPendingPositions(reordered);
+        setPendingPositions(withIndex);
         setReorderInfo({
-            from: positions[oldIndex],
-            to: positions[newIndex],
+            from: positions[oldIdx],
+            to: positions[newIdx],
+            newIndex: newIdx + 1,
         });
     };
 
     const handleConfirmReorder = async () => {
-        if (!pendingPositions) {
+        if (!pendingPositions || !reorderInfo) {
+            setPendingPositions(null);
             setReorderInfo(null);
             return;
         }
+
         setIsReordering(true);
-        const newPositions = pendingPositions;
-        setPositions(newPositions);
+
+        const prev = positions; // rollback nếu lỗi
+        setPositions(pendingPositions);
         setPendingPositions(null);
 
         try {
-            await Promise.all(
-                newPositions.map((pos) =>
-                    apiFetch(`${API_URL}/positions/${pos.id}`, {
-                        method: 'PATCH',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ index: pos.index }),
-                    }),
-                ),
-            );
-        } catch (error) {
-            console.error('Error updating positions order:', error);
+            await apiFetch(`${API_URL}/positions/${reorderInfo.from.id}/index`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ index: reorderInfo.newIndex }),
+            });
+        } catch (err) {
+            console.error('Update reorder failed', err);
+            setPositions(prev); // rollback
         } finally {
             setIsReordering(false);
             setReorderInfo(null);
@@ -215,69 +239,76 @@ export default function LineSettingsSection({
         setReorderInfo(null);
     };
 
-    const handleDeviceCommand = async (
-        device: DeviceInfo,
-        command: DeviceCommandType,
-        payload?: unknown,
-    ) => {
+
+    /* -----------------------
+       Device Handlers
+    ------------------------*/
+
+    const handleDeviceCommand = async (device: DeviceInfo, command: DeviceCommandType, payload?: unknown) => {
         console.log('Device command', { device, command, payload });
     };
 
     const handleUpdateDeviceInfo = async (deviceId: number, payload: Partial<DeviceInfo>) => {
-        console.log('Update device info', { deviceId, payload });
+        try {
+            await apiFetch(`${API_URL}/devices/${deviceId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+        } catch (err) {
+            console.error('Update device failed', err);
+        }
     };
 
+
+    /* -----------------------
+        Device Dialog
+    ------------------------*/
+
     const openCreateDevice = () => {
-        setDeviceDialog({
-            mode: 'create',
-            device: null,
-        });
+        setDeviceDialog({ mode: 'create', device: null });
     };
 
     const openEditDevice = (device: DeviceInfo) => {
-        setDeviceDialog({
-            mode: 'edit',
-            device,
-        });
+        setDeviceDialog({ mode: 'edit', device });
     };
 
     const handleDeviceSaved = (saved: DeviceInfo) => {
-        // Simple merge: replace device with same id or append
         const exists = devices.find((d) => d.id === saved.id);
-        if (!exists) {
-            devices.push(saved);
-        } else {
-            const index = devices.findIndex((d) => d.id === saved.id);
-            devices[index] = saved;
-        }
+        if (!exists) devices.push(saved);
+        else devices[devices.findIndex((d) => d.id === saved.id)] = saved;
         setDeviceDialog(null);
     };
 
+
+    /* -----------------------
+        Position Dialog
+    ------------------------*/
+
     const openCreatePosition = () => {
-        setPositionDialog({
-            mode: 'create',
-            position: null,
-        });
+        setPositionDialog({ mode: 'create', position: null });
     };
 
     const openEditPosition = (position: PositionInfo) => {
-        setPositionDialog({
-            mode: 'edit',
-            position,
-        });
+        setPositionDialog({ mode: 'edit', position });
     };
 
     const handlePositionSaved = (saved: PositionInfo) => {
-        setPositions((prev) => {
-            const others = prev.filter((p) => p.id !== saved.id);
-            return sortPositionByIndex([...others, saved]);
-        });
+        setPositions((prev) => sortPositionByIndex([...prev.filter((p) => p.id !== saved.id), saved]));
         setPositionDialog(null);
     };
 
+
+    /* -----------------------
+           RENDER
+    ------------------------*/
+
     return (
         <div className={styles.lineSettingsSection}>
-            {/* Thông tin dây chuyền */}
+
+            {/* -----------------------
+                Header: Line Info
+            ------------------------*/}
             <div className={styles.settingsBlock}>
                 <Formik
                     enableReinitialize
@@ -286,7 +317,7 @@ export default function LineSettingsSection({
                         description: lineInfo.description ?? '',
                         status: lineInfo.status ?? '',
                     }}
-                    onSubmit={async (values, { setSubmitting, resetForm, setValues }) => {
+                    onSubmit={async (values, { setSubmitting, resetForm }) => {
                         try {
                             const payload: Partial<ProductionLineInfo> = {
                                 name: values.name.trim(),
@@ -294,22 +325,18 @@ export default function LineSettingsSection({
                                 status: values.status || undefined,
                             };
 
-                            const res = await apiFetch(
-                                `${API_URL}/production-lines/${lineInfo.id}`,
-                                {
-                                    method: 'PATCH',
-                                    headers: {
-                                        'Content-Type': 'application/json',
-                                    },
-                                    body: JSON.stringify(payload),
-                                },
-                            );
+                            const res = await apiFetch(`${API_URL}/production-lines/${lineInfo.id}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload),
+                            });
+
                             if (!res.ok) {
-                                console.error('Error updating production line');
+                                console.error('Update production line failed');
                                 return;
                             }
-                            setValues(values)
-                        } catch (error) {
+
+                        } catch (err) {
                             resetForm();
                         } finally {
                             setSubmitting(false);
@@ -320,13 +347,12 @@ export default function LineSettingsSection({
                         <Form>
                             <div className={styles.lineSettingsHeader}>
                                 <div>
-                                    <h3 className={styles.settingsBlockTitle}>
-                                        Thông tin dây chuyền
-                                    </h3>
+                                    <h3 className={styles.settingsBlockTitle}>Thông tin dây chuyền</h3>
                                     <p className={styles.settingsBlockDescription}>
                                         Thông tin chung của dây chuyền.
                                     </p>
                                 </div>
+
                                 <div className={styles.lineSettingsActions}>
                                     <Button
                                         type="submit"
@@ -340,21 +366,14 @@ export default function LineSettingsSection({
 
                             <div className={styles.lineSettingsHeader}>
                                 <div className={styles.lineSettings}>
-                                    <InputField
-                                        name="name"
-                                        label="Tên dây chuyền"
-                                        placeholder="Nhập tên dây chuyền"
-                                    />
-                                    <InputField
-                                        name="description"
-                                        label="Mô tả"
-                                        placeholder="Mô tả ngắn cho dây chuyền"
-                                    />
+                                    <InputField name="name" label="Tên dây chuyền" placeholder="Nhập tên dây chuyền" />
+                                    <InputField name="description" label="Mô tả" placeholder="Mô tả ngắn" />
                                     <SelectField name="status" label="Trạng thái">
                                         <option value="">Chưa thiết lập</option>
                                         <option value="active">Đang hoạt động</option>
                                         <option value="inactive">Ngừng hoạt động</option>
                                     </SelectField>
+
                                     {lineInfo.activeBrickType && (
                                         <div className={styles.brickTypeRow}>
                                             <span className={styles.settingsBlockDescription}>
@@ -372,12 +391,16 @@ export default function LineSettingsSection({
                 </Formik>
             </div>
 
-            {/* Vị trí trên dây chuyền */}
+
+            {/* -----------------------
+                Positions Map
+            ------------------------*/}
             <div className={styles.settingsBlock}>
                 <h3 className={styles.settingsBlockTitle}>Vị trí trên dây chuyền</h3>
                 <p className={styles.settingsBlockDescription}>
                     Hiển thị trực quan các thiết bị theo vị trí (index) trên dây chuyền.
                 </p>
+
                 <DndContext
                     sensors={sensors}
                     collisionDetection={closestCenter}
@@ -402,16 +425,14 @@ export default function LineSettingsSection({
                                     onDelete={onDeletePosition}
                                 />
                             ))}
+
                             {positions.length === 0 && (
                                 <div className={styles.settingsDevicesEmpty}>
                                     Chưa có dữ liệu vị trí để hiển thị.
                                 </div>
                             )}
-                            <button
-                                type="button"
-                                className={styles.addSlot}
-                                onClick={openCreatePosition}
-                            >
+
+                            <button type="button" className={styles.addSlot} onClick={openCreatePosition}>
                                 + Thêm vị trí
                             </button>
                         </div>
@@ -419,32 +440,26 @@ export default function LineSettingsSection({
                 </DndContext>
             </div>
 
-            {/* Thiết bị & vị trí cấu hình */}
+
+            {/* -----------------------
+                Devices List
+            ------------------------*/}
+
             <div className={styles.settingsBlock}>
                 <div className={styles.settingHeader}>
                     <div>
-                        <h3 className={styles.settingsBlockTitle}>
-                            Thiết bị &amp; vị trí cấu hình
-                        </h3>
+                        <h3 className={styles.settingsBlockTitle}>Thiết bị & vị trí cấu hình</h3>
                         <p className={styles.settingsBlockDescription}>
-                            Danh sách thiết bị hiện đang gán cho dây chuyền này. Bấm vào từng thiết
-                            bị để xem chi tiết.
+                            Danh sách thiết bị đang gán cho dây chuyền này.
                         </p>
                     </div>
+
                     <div className={styles.lineSettingsActions}>
-                        <Button
-                            type="button"
-                            className={styles.primaryButton}
-                            onClick={onConfig}
-                        >
+                        <Button type="button" className={styles.primaryButton} onClick={onConfig}>
                             Cấu hình thiết bị
                         </Button>
-                        <Button
-                            type="button"
-                            className={styles.secondaryButton}
-                            onClick={onReset}
-                            disabled={isResetting}
-                        >
+
+                        <Button type="button" className={styles.secondaryButton} onClick={onReset} disabled={isResetting}>
                             {isResetting ? 'Đang reset...' : 'Reset dây chuyền'}
                         </Button>
                     </div>
@@ -454,32 +469,28 @@ export default function LineSettingsSection({
                     <div className={styles.filterChips}>
                         <button
                             type="button"
-                            className={`${styles.filterChip} ${deviceFilter === 'all' ? styles.filterChipActive : ''
-                                }`}
+                            className={`${styles.filterChip} ${deviceFilter === 'all' ? styles.filterChipActive : ''}`}
                             onClick={() => setDeviceFilter('all')}
                         >
                             Tất cả thiết bị
                         </button>
+
                         <button
                             type="button"
-                            className={`${styles.filterChip} ${deviceFilter === 'position' ? styles.filterChipActive : ''
-                                }`}
+                            className={`${styles.filterChip} ${deviceFilter === 'position' ? styles.filterChipActive : ''}`}
                             onClick={() => setDeviceFilter('position')}
                         >
                             Vị trí đang chọn
                         </button>
                     </div>
-                    <button
-                        type="button"
-                        className={styles.addDeviceButton}
-                        onClick={openCreateDevice}
-                    >
+
+                    <button type="button" className={styles.addDeviceButton} onClick={openCreateDevice}>
                         + Thêm thiết bị
                     </button>
+
                     {deviceFilter === 'position' && (
                         <div className={styles.selectedPositionLabel}>
-                            Vị trí:{' '}
-                            <strong>{selectedPosition ? selectedPosition.name : 'Chưa chọn'}</strong>
+                            Vị trí: <strong>{selectedPosition ? selectedPosition.name : 'Chưa chọn'}</strong>
                         </div>
                     )}
                 </div>
@@ -487,10 +498,11 @@ export default function LineSettingsSection({
                 <div className={styles.settingsDevicesTable}>
                     <div className={styles.settingsDevicesHeader}>
                         <span>Thiết bị</span>
-                        <span>Serial &amp; topic</span>
+                        <span>Serial & topic</span>
                         <span>Vị trí</span>
                         <span />
                     </div>
+
                     {filteredDevices.map((d) => (
                         <LineDeviceCard
                             key={d.id}
@@ -508,6 +520,7 @@ export default function LineSettingsSection({
                             onEdit={() => openEditDevice(d)}
                         />
                     ))}
+
                     {filteredDevices.length === 0 && (
                         <div className={styles.settingsDevicesEmpty}>
                             {deviceFilter === 'position'
@@ -518,6 +531,10 @@ export default function LineSettingsSection({
                 </div>
             </div>
 
+
+            {/* -----------------------
+                Dialog Device
+            ------------------------*/}
             {activeDevice && (
                 <DeviceSettingsDialog
                     device={activeDevice}
@@ -528,6 +545,10 @@ export default function LineSettingsSection({
                 />
             )}
 
+
+            {/* -----------------------
+                Dialog Create/Edit Device
+            ------------------------*/}
             {deviceDialog && (
                 <DeviceDialog
                     open={true}
@@ -540,21 +561,30 @@ export default function LineSettingsSection({
                 />
             )}
 
+
+            {/* -----------------------
+                Dialog Create/Edit Position
+            ------------------------*/}
             {positionDialog && (
                 <PositionDialog
                     open={true}
                     mode={positionDialog.mode}
                     lineId={lineInfo.id}
-                    maxIndex={positions.reduce(
-                        (max, p) => (p.index && p.index > max ? p.index : max),
-                        0,
-                    )}
+                    maxIndex={positions.reduce<number>((max, p) => {
+                        const idx =
+                            typeof p.index === 'number' && !Number.isNaN(p.index) ? p.index : 0;
+                        return idx > max ? idx : max;
+                    }, 0)}
                     initialPosition={positionDialog.position ?? undefined}
                     onClose={() => setPositionDialog(null)}
                     onSaved={handlePositionSaved}
                 />
             )}
 
+
+            {/* -----------------------
+                Dialog Confirm Reorder
+            ------------------------*/}
             {reorderInfo && (
                 <Dialog
                     open={true}
@@ -565,8 +595,9 @@ export default function LineSettingsSection({
                         Bạn có muốn thay đổi vị trí của{' '}
                         <strong>{reorderInfo.from.name}</strong> từ vị trí{' '}
                         <strong>{reorderInfo.from.index}</strong> sang vị trí{' '}
-                        <strong>{reorderInfo.to.index}</strong> không?
+                        <strong>{reorderInfo.newIndex}</strong> không?
                     </p>
+
                     <div className={styles.lineSettingsActions}>
                         <Button
                             type="button"
@@ -576,6 +607,7 @@ export default function LineSettingsSection({
                         >
                             Hủy
                         </Button>
+
                         <Button
                             type="button"
                             className={styles.primaryButton}
@@ -587,6 +619,7 @@ export default function LineSettingsSection({
                     </div>
                 </Dialog>
             )}
+
         </div>
     );
 }

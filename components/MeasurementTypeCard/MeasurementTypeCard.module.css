@@ -1,0 +1,111 @@
+.row {
+  display: grid;
+  grid-template-columns: 3fr 0.8fr 2fr 1.4fr;
+  gap: 0.75rem 1rem;
+  align-items: flex-start;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.colMain {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.name {
+  font-weight: 600;
+  color: #111827;
+}
+
+.code {
+  font-size: 0.8rem;
+  color: #6b7280;
+}
+
+.description {
+  font-size: 0.8rem;
+  color: #4b5563;
+}
+
+.colVersion {
+  display: flex;
+  align-items: center;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #4338ca;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.colSchema {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.label {
+  color: #6b7280;
+}
+
+.value {
+  color: #111827;
+}
+
+.colActions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-end;
+}
+
+.secondaryButton,
+.dangerButton {
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.secondaryButton {
+  background: #fff;
+  border-color: #e5e7eb;
+  color: #111827;
+}
+
+.secondaryButton:hover {
+  background: #f9fafb;
+}
+
+.dangerButton {
+  background: #fef2f2;
+  border-color: #fecdd3;
+  color: #b91c1c;
+}
+
+.dangerButton:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 768px) {
+  .row {
+    grid-template-columns: 1fr;
+  }
+
+  .colActions {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+}
+

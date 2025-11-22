@@ -1,196 +1,539 @@
 .section {
-  margin-bottom: 3rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
 }
 
+/* -------------------------------------------------------------------------- */
+/* Header dây chuyền                                                          */
+/* -------------------------------------------------------------------------- */
+
 .sectionHeader {
-  margin-bottom: 1.5rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 1.5rem;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
 }
 
 .headerLeft {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-  flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
 }
 
 .sectionTitle {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #0d6efd;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: white;
-  padding: 1rem 1.5rem;
-  border-radius: 8px;
-  margin: 0;
-  width: fit-content;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0;
+}
+
+.sectionTitle svg {
+    padding: 0.25rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
+    color: #ffffff;
 }
 
 .brickTypeInfo {
-  background: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.95rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    font-size: 0.9rem;
+    color: #4b5563;
 }
 
 .brickTypeLabel {
-  color: #6c757d;
-  font-weight: 500;
+    font-weight: 500;
+    color: #6b7280;
 }
 
 .brickTypeName {
-  color: #198754;
-  font-weight: 700;
-  font-size: 1.05rem;
+    font-weight: 600;
+    color: #111827;
 }
 
 .brickTypeDesc {
-  color: #6c757d;
-  font-size: 0.9rem;
-  font-style: italic;
+    font-style: italic;
+    color: #6b7280;
 }
 
 .headerButtons {
-  display: flex;
-  gap: 0.75rem;
-  align-items: center;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.configButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-inline: 0.75rem;
+    font-size: 0.9rem;
+}
+
+.resetButton {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding-inline: 0.9rem;
+    font-size: 0.9rem;
 }
 
 .spinning {
-  animation: spin 1s linear infinite;
+    animation: spin 0.9s linear infinite;
 }
 
 @keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
-.deviceGrid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
+/* -------------------------------------------------------------------------- */
+/* Khu vực vị trí + timeline                                                 */
+/* -------------------------------------------------------------------------- */
+
+.positionArea {
+    border-radius: 18px;
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    padding: 1.1rem 1.25rem 1rem;
 }
 
-.deviceButton {
-  padding: 0;
-  border: none;
-  background: transparent;
-  text-align: inherit;
-  cursor: pointer;
+.positionAreaHeaderRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.6rem;
+    font-size: 0.85rem;
+    color: #6b7280;
 }
 
-.deviceButton:focus-visible {
-  outline: 2px solid #0d6efd;
-  outline-offset: 2px;
+.positionAreaTitle {
+    font-weight: 600;
+    color: #111827;
 }
 
-@media (max-width: 1400px) {
-  .deviceGrid {
-    grid-template-columns: repeat(3, 1fr);
-  }
+.positionAreaHint {
+    font-style: italic;
+    color: #9ca3af;
 }
 
-@media (max-width: 768px) {
-  .deviceGrid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+/* Wrapper để vẽ đường timeline chung */
+
+.positionStripWrapper {
+    position: relative;
+    padding-top: 0.6rem;
 }
 
-.addDeviceCard {
-  border-radius: 12px;
-  border: 1px dashed rgba(148, 163, 184, 0.9);
-  background: radial-gradient(130% 160% at 0% 0%, #eef2ff 0%, #f9fafb 45%, #ffffff 100%);
-  padding: 1.25rem 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  cursor: pointer;
-  text-align: left;
-  transition: background-color 0.2s ease, border-color 0.2s ease,
-    box-shadow 0.2s ease, transform 0.05s ease;
+/* Đường timeline nối các card (trên hàng đầu) */
+.positionStripWrapper::before {
+    content: '';
+    position: absolute;
+    left: 2.5rem;
+    right: 4.5rem;
+    top: 2.3rem;
+    height: 2px;
+    background: linear-gradient(
+        to right,
+        rgba(209, 213, 219, 0),
+        rgba(209, 213, 219, 0.9),
+        rgba(209, 213, 219, 0)
+    );
+    pointer-events: none;
 }
 
-.addDeviceCard:hover {
-  border-color: #4f46e5;
-  background: radial-gradient(140% 170% at 0% 0%, #e0e7ff 0%, #f9fafb 45%, #ffffff 100%);
-  box-shadow: 0 12px 32px rgba(79, 70, 229, 0.25);
-  transform: translateY(-2px);
+/* Strip vị trí  – CHO PHÉP XUỐNG DÒNG */
+
+.positionStrip {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;              /* <--- cho phép xuống dòng */
+    column-gap: 1rem;
+    row-gap: 0.9rem;
+    padding: 0.25rem 0.1rem 0.5rem;
+    overflow-x: visible;          /* không cần thanh scroll ngang */
+    scroll-snap-type: none;       /* bỏ snap khi wrap */
 }
 
-.addDeviceIcon {
-  width: 32px;
-  height: 32px;
-  border-radius: 999px;
-  background: #111827;
-  color: #f9fafb;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.4rem;
-  font-weight: 600;
+/* không cần custom scrollbar nữa
+.positionStrip::-webkit-scrollbar { ... }
+*/
+
+/* Card vị trí */
+
+.positionCard {
+    position: relative;
+    flex: 0 0 230px;              /* width card cố định, cho phép wrap */
+    max-width: 260px;
+    background: linear-gradient(180deg, #f9fbff, #f3f4ff);
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    padding: 1rem 0.9rem 0.9rem;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.04);
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    transition:
+        transform 0.18s ease,
+        box-shadow 0.18s ease,
+        border-color 0.18s ease,
+        background 0.18s ease;
+    cursor: pointer;
 }
 
-.addDeviceContent {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
+.positionCard:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.12);
+    border-color: rgba(37, 99, 235, 0.6);
 }
 
-.addDeviceTitle {
-  margin: 0;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: #111827;
+.positionCardActive {
+    background: #ffffff;
+    border-color: #2563eb;
+    box-shadow: 0 14px 32px rgba(37, 99, 235, 0.25);
 }
 
-.addDeviceText {
-  margin: 0;
-  font-size: 0.8rem;
-  color: #4b5563;
+/* Badge số thứ tự */
+
+.positionIndexBadge {
+    position: absolute;
+    top: -12px;
+    left: 14px;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 6px 14px rgba(37, 99, 235, 0.5);
 }
+
+.positionIndexText {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+/* Header trong card */
+
+.positionHeader {
+    margin-top: 0.25rem;
+}
+
+.positionTitle {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #111827;
+    margin: 0 0 0.15rem;
+}
+
+.positionSubtitle {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin: 0 0 0.25rem;
+    min-height: 2.1em; /* 2 dòng để card đều nhau */
+}
+
+.positionDeviceCount {
+    font-size: 0.85rem;
+    color: #4b5563;
+    margin: 0;
+}
+
+/* Status trong card */
+
+.positionStatusRow {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.8rem;
+    margin-top: 0.2rem;
+}
+
+.positionStatusDot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+}
+
+.positionStatusDotRunning {
+    background-color: #22c55e;
+}
+
+.positionStatusDotIdle {
+    background-color: #facc15;
+}
+
+.positionStatusDotError {
+    background-color: #ef4444;
+}
+
+.positionStatusDotUnknown {
+    background-color: #9ca3af;
+}
+
+.positionStatusText {
+    color: #374151;
+}
+
+/* Metrics hiển thị tổng trên vị trí */
+
+.positionMetrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+}
+
+.positionMetricItem {
+    padding: 0.45rem 0.5rem;
+    border-radius: 10px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+.positionMetricLabel {
+    font-size: 0.75rem;
+    color: #6b7280;
+}
+
+.positionMetricValue {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #111827;
+}
+
+/* Nút thêm vị trí */
+
+.addPositionCard {
+    flex: 0 0 160px;
+    align-self: stretch;
+    border-radius: 999px;
+    border: 1px dashed #c4c4d4;
+    background: rgba(255, 255, 255, 0.85);
+    padding: 0.6rem 1rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: #4b5563;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        transform 0.1s ease;
+}
+
+.addPositionCard:hover {
+    background: #eef2ff;
+    border-color: #6366f1;
+    transform: translateY(-1px);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Panel thiết bị ở vị trí được chọn                                         */
+/* -------------------------------------------------------------------------- */
+
+.devicesPanel {
+    margin-top: 0.85rem;
+    padding: 0.9rem 1.25rem;
+    border-radius: 16px;
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.devicesPanelHeader {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    font-size: 0.87rem;
+}
+
+.devicesPanelTitle {
+    color: #4b5563;
+}
+
+.devicesPanelTitle span {
+    font-weight: 600;
+    color: #111827;
+}
+
+.devicesPanelHint {
+    font-size: 0.82rem;
+    color: #9ca3af;
+    text-align: right;
+}
+
+.devicesPanelBody {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.deviceChipList {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* Chip thiết bị */
+
+.deviceChip {
+    border: none;
+    outline: none;
+    cursor: pointer;
+    border-radius: 999px;
+    padding: 0.35rem 0.8rem;
+    background: #0f172a;
+    color: #e5e7eb;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    font-size: 0.82rem;
+    transition:
+        background 0.15s ease,
+        box-shadow 0.15s ease,
+        transform 0.1s ease;
+}
+
+.deviceChipInactive {
+    background: #f9fafb;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+}
+
+.deviceChip:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(15, 23, 42, 0.17);
+}
+
+.deviceStatusDot {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: #22c55e;
+}
+
+.deviceChipLabel {
+    font-weight: 500;
+}
+
+.deviceChipId {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        'Liberation Mono', 'Courier New', monospace;
+    font-size: 0.78rem;
+    opacity: 0.9;
+}
+
+/* Hint ở bên phải panel thiết bị */
+
+.devicesEmptyHint {
+    flex: 1;
+    min-width: 180px;
+    font-size: 0.85rem;
+    color: #9ca3af;
+    text-align: right;
+    align-self: center;
+}
+
+/* Button thêm thiết bị */
+
+.addDeviceButton {
+    border-radius: 999px;
+    border: 1px dashed #c4c4d4;
+    background: #f9fafb;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.82rem;
+    color: #4b5563;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition:
+        background 0.15s ease,
+        border-color 0.15s ease,
+        transform 0.1s ease;
+}
+
+.addDeviceButton:hover {
+    background: #eef2ff;
+    border-color: #6366f1;
+    transform: translateY(-1px);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Khu vực hao phí tổng                                                      */
+/* -------------------------------------------------------------------------- */
 
 .metricsSection {
-  margin-top: 1.5rem;
+    margin-top: 0.5rem;
 }
 
 .metricsGrid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 1rem;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.75rem;
 }
 
-@media (max-width: 1200px) {
-  .metricsGrid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+/* Responsive */
+
+@media (max-width: 960px) {
+    .sectionHeader {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .headerButtons {
+        align-self: stretch;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .devicesPanelHeader {
+        flex-direction: column;
+    }
+
+    .devicesPanelHint {
+        text-align: left;
+    }
+
+    .metricsGrid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
-@media (max-width: 768px) {
-  .metricsGrid {
-    grid-template-columns: 1fr;
-  }
+@media (max-width: 640px) {
+    .metricsGrid {
+        grid-template-columns: minmax(0, 1fr);
+    }
 
-  .sectionHeader {
-    flex-direction: column;
-    align-items: stretch;
-  }
+    .positionCard {
+        flex: 1 1 100%;   
+        min-width: 0;
+    }
 
-  .resetButton {
-    width: 100%;
-    justify-content: center;
-  }
+    .devicesPanelBody {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .devicesEmptyHint {
+        text-align: left;
+        align-self: flex-start;
+    }
 }
