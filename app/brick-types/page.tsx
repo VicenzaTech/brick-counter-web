@@ -7,6 +7,7 @@ import { useAuthStore } from '@/store/auth.store';
 import { hasPermission } from '@/lib/auth/rbarc';
 import { PERMISSIONS } from '@/lib/auth/permission.constant';
 
+// Interface đã được cập nhật với đầy đủ các trường từ mock data
 interface BrickType {
     id: number;
     name: string;
@@ -17,68 +18,62 @@ interface BrickType {
     activeProductionLineId?: number;
     lastActiveAt?: string;
     activeStatus?: 'producing' | 'paused' | 'inactive';
-    activeProductionLines?: number[];
-    productionCount?: number;
-}
-
-interface ProductionLine {
-    id: number;
-    name: string;
-    activeBrickTypeId?: number;
-    activeBrickType?: BrickType;
-    productionStatus?: 'producing' | 'paused' | 'stopped';
-}
-
-interface ProductionLineAssignment {
-    lineId: number;
-    lineName: string;
-    activeBrick?: BrickType;
+    // Các trường mới từ mock data
+    workshop?: string;
+    productionLine?: string;
+    tileSize?: string;
+    contractCycle?: number;
+    kilnOutput?: number;
+    qualityProductOutput?: number;
+    deductionDays?: number;
+    contractProduction?: number;
+    additionalContractWhenReducingCycle?: number;
+    reducedContractWhenIncreasingCycle?: number;
+    // Thêm trạng thái sản xuất
 }
 
 export default function BrickTypesPage() {
     const [brickTypes, setBrickTypes] = useState<BrickType[]>([]);
-    const [productionLines, setProductionLines] = useState<ProductionLine[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
-    const [showLineSettingModal, setShowLineSettingModal] = useState(false);
-    const [selectedLine, setSelectedLine] = useState<ProductionLine | null>(null);
-    const [selectedBrickForLine, setSelectedBrickForLine] = useState<number | null>(null);
-    const [selectedStatus, setSelectedStatus] = useState<'producing' | 'paused'>('producing');
     const [editingBrick, setEditingBrick] = useState<BrickType | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    // Form data đã được mở rộng để chứa các trường mới
     const [formData, setFormData] = useState({
         name: '',
         description: '',
         unit: 'm²',
         specs: '',
+        workshop: '',
+        productionLine: '',
+        tileSize: '',
+        contractCycle: '',
+        kilnOutput: '',
+        qualityProductOutput: '',
+        deductionDays: '',
+        contractProduction: '',
+        additionalContractWhenReducingCycle: '',
+        reducedContractWhenIncreasingCycle: '',
     });
-    const [error, setError] = useState<string | null>(null);
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555/api';
 
-
     // Get auth state 
     const user = useAuthStore(s => s.user)
+    const canUpdate = hasPermission(user, PERMISSIONS.PRODUCTION_LINE_UPDATE) // Giữ lại quyền kiểm tra cho các thao tác khác
 
-    // Compare permisison
-    const canUpdate = hasPermission(user, PERMISSIONS.PRODUCTION_LINE_UPDATE)
     useEffect(() => {
         fetchBrickTypes();
-        fetchProductionLines();
     }, []);
 
+    // Hàm fetch đã được đơn giản hóa, chỉ lấy dữ liệu từ backend
     const fetchBrickTypes = async () => {
         try {
             const res = await apiFetch(`${API_URL}/brick-types`);
             if (res.ok) {
                 const data = await res.json();
-                // Fetch production info for each brick type
-                const enrichedData = await Promise.all(
-                    data.map(async (brick: BrickType) => {
-                        const activeLines = await getActiveProductionLines(brick.id);
-                        return { ...brick, activeProductionLines: activeLines };
-                    })
-                );
-                setBrickTypes(enrichedData);
+                setBrickTypes(data);
             }
         } catch (error) {
             console.error('Error fetching brick types:', error);
@@ -88,47 +83,31 @@ export default function BrickTypesPage() {
         }
     };
 
-    const fetchProductionLines = async () => {
-        try {
-            const res = await apiFetch(`${API_URL}/production-lines`);
-            if (res.ok) {
-                const lines = await res.json();
-                setProductionLines(lines);
-            }
-        } catch (error) {
-            console.error('Error fetching production lines:', error);
-        }
-    };
-
-    const getActiveProductionLines = async (brickTypeId: number): Promise<number[]> => {
-        try {
-            // Get recent productions for this brick type
-            const today = new Date().toISOString().split('T')[0];
-            const res = await apiFetch(
-                `${API_URL}/productions?brickTypeId=${brickTypeId}&startDate=${today}&endDate=${today}`
-            );
-            if (res.ok) {
-                const productions = await res.json();
-                const uniqueLines = [...new Set(productions.map((p: any) => p.productionLine?.id))].filter(Boolean);
-                return uniqueLines as number[];
-            }
-        } catch (error) {
-            console.error('Error fetching active production lines:', error);
-        }
-        return [];
-    };
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setError(null);
 
         try {
-            const payload = {
+            // Chuyển đổi các trường số từ string sang number
+            const payload: any = {
                 name: formData.name,
                 description: formData.description || undefined,
                 unit: formData.unit || undefined,
                 specs: formData.specs ? JSON.parse(formData.specs) : undefined,
+                workshop: formData.workshop || undefined,
+                productionLine: formData.productionLine || undefined,
+                tileSize: formData.tileSize || undefined,
             };
+
+            // Chỉ thêm các trường số nếu chúng không rỗng
+            if (formData.contractCycle) payload.contractCycle = Number(formData.contractCycle);
+            if (formData.kilnOutput) payload.kilnOutput = Number(formData.kilnOutput);
+            if (formData.qualityProductOutput) payload.qualityProductOutput = Number(formData.qualityProductOutput);
+            if (formData.deductionDays) payload.deductionDays = Number(formData.deductionDays);
+            if (formData.contractProduction) payload.contractProduction = Number(formData.contractProduction);
+            if (formData.additionalContractWhenReducingCycle) payload.additionalContractWhenReducingCycle = Number(formData.additionalContractWhenReducingCycle);
+            if (formData.reducedContractWhenIncreasingCycle) payload.reducedContractWhenIncreasingCycle = Number(formData.reducedContractWhenIncreasingCycle);
+
 
             const url = editingBrick
                 ? `${API_URL}/brick-types/${editingBrick.id}`
@@ -184,6 +163,16 @@ export default function BrickTypesPage() {
             description: brick.description || '',
             unit: brick.unit || 'm²',
             specs: brick.specs ? JSON.stringify(brick.specs, null, 2) : '',
+            workshop: brick.workshop || '',
+            productionLine: brick.productionLine || '',
+            tileSize: brick.tileSize || '',
+            contractCycle: brick.contractCycle?.toString() || '',
+            kilnOutput: brick.kilnOutput?.toString() || '',
+            qualityProductOutput: brick.qualityProductOutput?.toString() || '',
+            deductionDays: brick.deductionDays?.toString() || '',
+            contractProduction: brick.contractProduction?.toString() || '',
+            additionalContractWhenReducingCycle: brick.additionalContractWhenReducingCycle?.toString() || '',
+            reducedContractWhenIncreasingCycle: brick.reducedContractWhenIncreasingCycle?.toString() || '',
         });
         setShowModal(true);
     };
@@ -191,122 +180,18 @@ export default function BrickTypesPage() {
     const handleCloseModal = () => {
         setShowModal(false);
         setEditingBrick(null);
-        setFormData({ name: '', description: '', unit: 'm²', specs: '' });
+        setFormData({
+            name: '', description: '', unit: 'm²', specs: '', workshop: '', productionLine: '', tileSize: '',
+            contractCycle: '', kilnOutput: '', qualityProductOutput: '', deductionDays: '', contractProduction: '',
+            additionalContractWhenReducingCycle: '', reducedContractWhenIncreasingCycle: ''
+        });
         setError(null);
     };
-
-    const getProductionLineName = (lineId: number) => {
-        return productionLines.find(l => l.id === lineId)?.name || `Dây chuyền ${lineId}`;
-    };
-
-    const getBrickTypeName = (brickId: number) => {
-        return brickTypes.find(b => b.id === brickId)?.name || `Dòng gạch ${brickId}`;
-    };
-
-    const getActiveBrickOnLine = (lineId: number): BrickType | undefined => {
-        const line = productionLines.find(l => l.id === lineId);
-        if (!line || !line.activeBrickTypeId) return undefined;
-
-        // If activeBrickType is populated from backend
-        if (line.activeBrickType) return line.activeBrickType;
-
-        // Otherwise find it from brickTypes
-        return brickTypes.find(b => b.id === line.activeBrickTypeId);
-    };
-
-    const handleRequestLineSetting = (line: ProductionLine) => {
-        alert('Tính năng sẽ được phát triển tại "feature/brick-type" ')
-    }
-
-    const handleOpenLineSetting = (line: ProductionLine) => {
-        setSelectedLine(line);
-        const activeBrick = getActiveBrickOnLine(line.id);
-        // Nếu đang có brick type active, không cho chọn brick khác
-        // Phải dừng sản xuất trước
-        setSelectedBrickForLine(activeBrick?.id || null);
-        setSelectedStatus(activeBrick?.activeStatus === 'paused' ? 'paused' : 'producing');
-        setError(null);
-        setShowLineSettingModal(true);
-    };
-
-    const handleSetBrickForLine = async () => {
-        if (!selectedLine || !selectedBrickForLine) {
-            setError('Vui lòng chọn dòng gạch');
-            return;
-        }
-
-        try {
-            const res = await apiFetch(`${API_URL}/brick-types/${selectedBrickForLine}/activate`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    productionLineId: selectedLine.id,
-                    status: selectedStatus,
-                }),
-            });
-
-            if (res.ok) {
-                await fetchBrickTypes();
-                await fetchProductionLines();
-                setShowLineSettingModal(false);
-                setSelectedLine(null);
-                setSelectedBrickForLine(null);
-            } else {
-                const errorData = await res.json();
-                setError(errorData.message || 'Lỗi khi cài đặt dòng gạch cho dây chuyền');
-            }
-        } catch (error: any) {
-            console.error('Error setting brick for line:', error);
-            setError(error.message || 'Lỗi khi cài đặt dòng gạch cho dây chuyền');
-        }
-    };
-
-    const handleStopLineProduction = async (lineId: number) => {
-        const activeBrick = getActiveBrickOnLine(lineId);
-        if (!activeBrick) return;
-
-        console.log(`🛑 Stopping production:`, { lineId, brickId: activeBrick.id, brickName: activeBrick.name });
-
-        if (!confirm(`Bạn có chắc chắn muốn dừng sản xuất "${activeBrick.name}" trên dây chuyền này?`)) {
-            return;
-        }
-
-        try {
-            const payload = { productionLineId: lineId };
-            console.log(`📤 Sending deactivate request:`, payload);
-            
-            const res = await apiFetch(`${API_URL}/brick-types/${activeBrick.id}/deactivate`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-
-            console.log(`📥 Response status:`, res.status);
-
-            if (res.ok) {
-                console.log(`✅ Deactivated successfully`);
-                
-                // Cập nhật state ngay lập tức để hiển thị "Không hoạt động"
-                setProductionLines(prevLines => 
-                    prevLines.map(line => 
-                        line.id === lineId 
-                            ? { ...line, activeBrickTypeId: undefined, productionStatus: 'stopped' as const }
-                            : line
-                    )
-                );
-                
-                // Refresh data từ server để đảm bảo sync
-                await fetchBrickTypes();
-                await fetchProductionLines();
-            } else {
-                const errorData = await res.json();
-                console.error(`❌ Deactivate failed:`, errorData);
-                setError(errorData.message || 'Lỗi khi dừng sản xuất');
-            }
-        } catch (error: any) {
-            console.error('Error stopping production:', error);
-            setError(error.message || 'Lỗi khi dừng sản xuất');
-        }
+    
+    // Helper để định dạng số
+    const formatNumber = (num?: number) => {
+        if (num === undefined || num === null) return '-';
+        return new Intl.NumberFormat('vi-VN').format(num);
     };
 
     return (
@@ -315,7 +200,7 @@ export default function BrickTypesPage() {
             <div className={styles.header}>
                 <div className={styles.headerContent}>
                     <h1>🧱 Quản lý Dòng Gạch</h1>
-                    <p className={styles.subtitle}>Quản lý các loại gạch sản xuất và trạng thái sản xuất</p>
+                    <p className={styles.subtitle}>Quản lý các loại gạch sản xuất và thông tin chi tiết</p>
                 </div>
                 <button className={styles.addBtn} onClick={() => setShowModal(true)}>
                     <span>➕</span> Thêm Dòng Gạch
@@ -339,7 +224,7 @@ export default function BrickTypesPage() {
                 </div>
             ) : (
                 <div className={styles.content}>
-                    {/* Stats Cards */}
+                    {/* Stats Cards - Đã loại bỏ card dây chuyền */}
                     <div className={styles.statsGrid}>
                         <div className={styles.statCard}>
                             <div className={styles.statIcon}>📦</div>
@@ -357,115 +242,9 @@ export default function BrickTypesPage() {
                                 </div>
                             </div>
                         </div>
-                        <div className={styles.statCard}>
-                            <div className={styles.statIcon}>🏭</div>
-                            <div className={styles.statContent}>
-                                <div className={styles.statLabel}>Dây chuyền</div>
-                                <div className={styles.statValue}>{productionLines.length}</div>
-                            </div>
-                        </div>
                     </div>
 
-                    {/* Production Lines Management */}
-                    <div className={styles.tableSection}>
-                        <div className={styles.tableHeader}>
-                            <h2>🏭 Quản lý Dây chuyền Sản xuất</h2>
-                            <div className={styles.tableInfo}>
-                                {productionLines.length} dây chuyền
-                            </div>
-                        </div>
-
-                        <div className={styles.tableWrapper}>
-                            <table className={styles.table}>
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Tên dây chuyền</th>
-                                        <th>Trạng thái</th>
-                                        <th>Dòng gạch đang chạy</th>
-                                        <th>Thao tác</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {productionLines.length === 0 ? (
-                                        <tr>
-                                            <td colSpan={5} className={styles.emptyState}>
-                                                <div className={styles.emptyIcon}>🏭</div>
-                                                <p>Chưa có dây chuyền nào</p>
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        productionLines.map((line) => {
-                                            const activeBrick = getActiveBrickOnLine(line.id);
-                                            return (
-                                                <tr key={line.id}>
-                                                    <td className={styles.idCell}>{line.id}</td>
-                                                    <td className={styles.nameCell}>
-                                                        <strong>{line.name}</strong>
-                                                    </td>
-                                                    <td>
-                                                        {activeBrick ? (
-                                                            <span className={`${styles.badge} ${styles.badgeActive}`}>
-                                                                {activeBrick.activeStatus === 'producing' && '⚡ Đang sản xuất'}
-                                                                {activeBrick.activeStatus === 'paused' && '⏸️ Tạm dừng'}
-                                                            </span>
-                                                        ) : (
-                                                            <span className={`${styles.badge} ${styles.badgeInactive}`}>
-                                                                ○ Không hoạt động
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                    <td>
-                                                        {activeBrick ? (
-                                                            <span className={styles.lineTag}>
-                                                                {activeBrick.name}
-                                                            </span>
-                                                        ) : (
-                                                            <span className={styles.emptyValue}>-</span>
-                                                        )}
-                                                    </td>
-                                                    <td>
-                                                        <div className={styles.actions}>
-                                                            {
-                                                                canUpdate ?
-                                                                    <button
-                                                                        className={styles.settingsBtn}
-                                                                        onClick={() => handleOpenLineSetting(line)}
-                                                                        title="Cài đặt dòng gạch"
-                                                                    >
-                                                                        Cài đặt
-                                                                    </button> :
-                                                                    <button
-                                                                        className={styles.settingsBtn}
-                                                                        onClick={() => handleRequestLineSetting(line)}
-                                                                        title="Cài đặt dòng gạch"
-                                                                    >
-                                                                        Gửi yêu cầu...
-                                                                    </button>
-                                                            }
-
-
-                                                            {activeBrick && (
-                                                                <button
-                                                                    className={styles.stopBtn}
-                                                                    onClick={() => handleStopLineProduction(line.id)}
-                                                                    title="Dừng sản xuất"
-                                                                >
-                                                                    ⏹️
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-                    {/* Brick Types Table */}
+                    {/* Brick Types Table with Full Details */}
                     <div className={styles.tableSection}>
                         <div className={styles.tableHeader}>
                             <h2>Danh sách Dòng Gạch</h2>
@@ -480,15 +259,21 @@ export default function BrickTypesPage() {
                                     <tr>
                                         <th>ID</th>
                                         <th>Tên dòng gạch</th>
-                                        <th>Mô tả</th>
-                                        <th>Đơn vị</th>
+                                        <th>Phân xưởng</th>
+                                        <th>Dây chuyền</th>
+                                        <th>Kích thước SP</th>
+                                        <th>Trạng thái sản xuất</th>
+                                        {/* <th>Chu kỳ khoán (phút)</th>
+                                        <th>SL ra lò (m²)</th>
+                                        <th>SL chính phẩm (m²)</th>
+                                        <th>SL khoán (m²/tháng)</th> */}
                                         <th>Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {brickTypes.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className={styles.emptyState}>
+                                            <td colSpan={10} className={styles.emptyState}>
                                                 <div className={styles.emptyIcon}>📦</div>
                                                 <p>Chưa có dòng gạch nào</p>
                                                 <button className={styles.addBtnSmall} onClick={() => setShowModal(true)}>
@@ -502,11 +287,18 @@ export default function BrickTypesPage() {
                                                 <td className={styles.idCell}>{brick.id}</td>
                                                 <td className={styles.nameCell}>
                                                     <strong>{brick.name}</strong>
+                                                    {brick.description && (
+                                                        <div className={styles.descCell}>{brick.description}</div>
+                                                    )}
                                                 </td>
-                                                <td className={styles.descCell}>
-                                                    {brick.description || <span className={styles.emptyValue}>-</span>}
-                                                </td>
-                                                <td>{brick.unit || '-'}</td>
+                                                <td>{brick.workshop || '-'}</td>
+                                                <td>{brick.productionLine || '-'}</td>
+                                                <td>{brick.tileSize || '-'}</td>
+                                                <td>{brick.isActive ? 'Sản xuất' : 'Ngừng sản xuất'}</td>
+                                                {/* <td>{formatNumber(brick.contractCycle)}</td>
+                                                <td>{formatNumber(brick.kilnOutput)}</td>
+                                                <td>{formatNumber(brick.qualityProductOutput)}</td>
+                                                <td>{formatNumber(brick.contractProduction)}</td> */}
                                                 <td>
                                                     <div className={styles.actions}>
                                                         <button
@@ -535,181 +327,77 @@ export default function BrickTypesPage() {
                 </div>
             )}
 
-            {/* Modal */}
+            {/* Modal for Add/Edit - Đã được mở rộng */}
             {showModal && (
                 <div className={styles.modalOverlay} onClick={handleCloseModal}>
-                    <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+                    <div className={`${styles.modal} ${styles.largeModal}`} onClick={(e) => e.stopPropagation()}>
                         <div className={styles.modalHeader}>
                             <h2>{editingBrick ? '✏️ Chỉnh sửa Dòng Gạch' : '➕ Thêm Dòng Gạch Mới'}</h2>
                             <button className={styles.closeBtn} onClick={handleCloseModal}>✕</button>
                         </div>
 
                         <form onSubmit={handleSubmit} className={styles.form}>
-                            <div className={styles.formGroup}>
-                                <label htmlFor="name">
-                                    Tên dòng gạch <span className={styles.required}>*</span>
-                                </label>
-                                <input
-                                    id="name"
-                                    type="text"
-                                    value={formData.name}
-                                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                                    placeholder="VD: Gạch 60x60, Gạch 30x30..."
-                                    required
-                                    className={styles.input}
-                                />
+                            <div className={styles.formRow}>
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="name">Tên dòng gạch <span className={styles.required}>*</span></label>
+                                    <input id="name" type="text" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} placeholder="VD: Gạch 60x60" required className={styles.input} />
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="tileSize">Kích thước SP</label>
+                                    <input id="tileSize" type="text" value={formData.tileSize} onChange={(e) => setFormData({ ...formData, tileSize: e.target.value })} placeholder="VD: 600x600mm" className={styles.input} />
+                                </div>
+                            </div>
+                            
+                            <div className={styles.formRow}>
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="workshop">Phân xưởng</label>
+                                    <input id="workshop" type="text" value={formData.workshop} onChange={(e) => setFormData({ ...formData, workshop: e.target.value })} placeholder="VD: Phân xưởng 1" className={styles.input} />
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="productionLine">Dây chuyền</label>
+                                    <input id="productionLine" type="text" value={formData.productionLine} onChange={(e) => setFormData({ ...formData, productionLine: e.target.value })} placeholder="VD: Dây chuyền 1" className={styles.input} />
+                                </div>
                             </div>
 
                             <div className={styles.formGroup}>
                                 <label htmlFor="description">Mô tả</label>
-                                <textarea
-                                    id="description"
-                                    value={formData.description}
-                                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                                    placeholder="Mô tả chi tiết về dòng gạch..."
-                                    rows={3}
-                                    className={styles.textarea}
-                                />
+                                <textarea id="description" value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} placeholder="Mô tả chi tiết..." rows={2} className={styles.textarea} />
                             </div>
 
                             <div className={styles.formRow}>
                                 <div className={styles.formGroup}>
-                                    <label htmlFor="unit">Đơn vị</label>
-                                    <input
-                                        id="unit"
-                                        type="text"
-                                        value={formData.unit}
-                                        onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                                        placeholder="VD: m², viên, tấm..."
-                                        className={styles.input}
-                                    />
+                                    <label htmlFor="contractCycle">Chu kỳ khoán (phút)</label>
+                                    <input id="contractCycle" type="number" value={formData.contractCycle} onChange={(e) => setFormData({ ...formData, contractCycle: e.target.value })} className={styles.input} />
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="kilnOutput">Sản lượng ra lò (m²)</label>
+                                    <input id="kilnOutput" type="number" value={formData.kilnOutput} onChange={(e) => setFormData({ ...formData, kilnOutput: e.target.value })} className={styles.input} />
+                                </div>
+                            </div>
+
+                            <div className={styles.formRow}>
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="qualityProductOutput">Sản lượng chính phẩm (m²)</label>
+                                    <input id="qualityProductOutput" type="number" value={formData.qualityProductOutput} onChange={(e) => setFormData({ ...formData, qualityProductOutput: e.target.value })} className={styles.input} />
+                                </div>
+                                <div className={styles.formGroup}>
+                                    <label htmlFor="contractProduction">Sản lượng khoán (m²/tháng)</label>
+                                    <input id="contractProduction" type="number" value={formData.contractProduction} onChange={(e) => setFormData({ ...formData, contractProduction: e.target.value })} className={styles.input} />
                                 </div>
                             </div>
 
                             <div className={styles.formGroup}>
-                                <label htmlFor="specs">
-                                    Thông số kỹ thuật (JSON)
-                                    <span className={styles.labelHint}>Tùy chọn</span>
-                                </label>
-                                <textarea
-                                    id="specs"
-                                    value={formData.specs}
-                                    onChange={(e) => setFormData({ ...formData, specs: e.target.value })}
-                                    placeholder='{"size": "60x60", "thickness": "10mm", "color": "beige"}'
-                                    rows={4}
-                                    className={styles.textarea}
-                                />
-                                <small className={styles.hint}>
-                                    Nhập dưới dạng JSON hợp lệ. Ví dụ: {`{"kích_thuoc": "60x60cm", "mau_sac": "kem"}`}
-                                </small>
+                                <label htmlFor="specs">Thông số kỹ thuật (JSON) <span className={styles.labelHint}>Tùy chọn</span></label>
+                                <textarea id="specs" value={formData.specs} onChange={(e) => setFormData({ ...formData, specs: e.target.value })} placeholder='{"size": "60x60", "thickness": "10mm"}' rows={3} className={styles.textarea} />
                             </div>
 
-                            {error && (
-                                <div className={styles.formError}>
-                                    ⚠️ {error}
-                                </div>
-                            )}
+                            {error && <div className={styles.formError}>⚠️ {error}</div>}
 
                             <div className={styles.formActions}>
-                                <button type="button" className={styles.cancelBtn} onClick={handleCloseModal}>
-                                    Hủy
-                                </button>
-                                <button type="submit" className={styles.submitBtn}>
-                                    {editingBrick ? '💾 Cập nhật' : '➕ Thêm mới'}
-                                </button>
+                                <button type="button" className={styles.cancelBtn} onClick={handleCloseModal}>Hủy</button>
+                                <button type="submit" className={styles.submitBtn}>{editingBrick ? '💾 Cập nhật' : '➕ Thêm mới'}</button>
                             </div>
                         </form>
-                    </div>
-                </div>
-            )}
-
-            {/* Line Setting Modal */}
-            {showLineSettingModal && selectedLine && (
-                <div className={styles.modalOverlay} onClick={() => setShowLineSettingModal(false)}>
-                    <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-                        <div className={styles.modalHeader}>
-                            <h2>⚙️ Cài đặt Dòng gạch cho Dây chuyền</h2>
-                            <button className={styles.closeBtn} onClick={() => setShowLineSettingModal(false)}>✕</button>
-                        </div>
-
-                        <div className={styles.activateForm}>
-                            <div className={styles.brickInfo}>
-                                <h3>🏭 {selectedLine.name}</h3>
-                                <p>Chọn dòng gạch sản xuất trên dây chuyền này</p>
-                                {getActiveBrickOnLine(selectedLine.id) && (
-                                    <div className={styles.warningBox} style={{ marginTop: '10px' }}>
-                                        ⚠️ Dây chuyền đang có dòng gạch "{getActiveBrickOnLine(selectedLine.id)?.name}". 
-                                        Vui lòng dừng sản xuất trước khi chọn dòng gạch khác.
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className={styles.formGroup}>
-                                <label htmlFor="brickType">
-                                    Dòng gạch <span className={styles.required}>*</span>
-                                </label>
-                                <select
-                                    id="brickType"
-                                    value={selectedBrickForLine || ''}
-                                    onChange={(e) => setSelectedBrickForLine(Number(e.target.value))}
-                                    className={styles.select}
-                                    disabled={!!getActiveBrickOnLine(selectedLine.id)}
-                                    required
-                                >
-                                    <option value="">-- Chọn dòng gạch --</option>
-                                    {brickTypes.map(brick => (
-                                        <option key={brick.id} value={brick.id}>
-                                            {brick.name}
-                                        </option>
-                                    ))}
-                                </select>
-                                {brickTypes.length === 0 && (
-                                    <div className={styles.warningBox}>
-                                        ⚠️ Chưa có dòng gạch nào. Vui lòng thêm dòng gạch trước.
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className={styles.formGroup}>
-                                <label htmlFor="status">
-                                    Trạng thái sản xuất <span className={styles.required}>*</span>
-                                </label>
-                                <select
-                                    id="status"
-                                    value={selectedStatus}
-                                    onChange={(e) => setSelectedStatus(e.target.value as 'producing' | 'paused')}
-                                    className={styles.select}
-                                    required
-                                >
-                                    <option value="producing">⚡ Đang sản xuất</option>
-                                    <option value="paused">⏸️ Tạm dừng</option>
-                                </select>
-                            </div>
-
-                            {error && (
-                                <div className={styles.formError}>
-                                    ⚠️ {error}
-                                </div>
-                            )}
-
-                            <div className={styles.formActions}>
-                                <button
-                                    type="button"
-                                    className={styles.cancelBtn}
-                                    onClick={() => setShowLineSettingModal(false)}
-                                >
-                                    Hủy
-                                </button>
-                                <button
-                                    disabled={!canUpdate}
-                                    type="button"
-                                    className={styles.submitBtn}
-                                    onClick={handleSetBrickForLine}
-                                >
-                                    ✓ Xác nhận
-                                </button>
-                            </div>
-                        </div>
                     </div>
                 </div>
             )}

@@ -10,10 +10,8 @@ import { useShallow } from 'zustand/shallow';
 import UserInfo from '../UserInfo/UserInfo';
 
 const navItems = [
-    // { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { href: '/device-dashboard', label: 'Phân tích thiết bị', icon: Activity },
-    { href: '/analytics', label: 'Phân tích theo dây chuyền', icon: TrendingUp },
-    { href: '/brick-analytics', label: 'Phân tích theo dòng gạch', icon: Box },
     { href: '/brick-types', label: 'Quản lý dòng gạch', icon: Database },
 ];
 
