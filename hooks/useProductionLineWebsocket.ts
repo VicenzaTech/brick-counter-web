@@ -51,7 +51,6 @@ export function useProductionLineSockets(
     useEffect(() => {
         if (!clusters?.length) return;
         if (typeof window === 'undefined') return;
-
         clusters.forEach((cls) => {
             const clusterCode = cls.code;
             if (!clusterCode) return;
@@ -77,7 +76,6 @@ export function useProductionLineSockets(
             });
 
             socket.on('telemetry', (payload: RawTelemetryPayload) => {
-                console.log(payload)
                 onTelemetry?.(payload);
             });
             socket.on('disconnect', (reason) => {

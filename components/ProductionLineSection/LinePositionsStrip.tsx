@@ -34,7 +34,7 @@ export const LinePositionsStrip: React.FC<LinePositionsStripProps> = ({
     onSelectPosition,
     telemetryByPosition,
 }) => {
-    console.log(`telemetryByPosition`, telemetryByPosition)
+    // console.log(`telemetryByPosition`, telemetryByPosition)
 
     return (
         <div className={styles.positionArea}>

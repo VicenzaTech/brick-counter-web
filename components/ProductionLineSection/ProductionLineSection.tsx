@@ -11,7 +11,7 @@ import { DeviceInfo } from '@/app/device-dashboard/page';
 export interface DeviceRuntimeInfo {
     deviceId: string;
     name: string;
-    count: number;
+    metrics: object;
     errorCount: number;
     lastUpdated: string | null;
     rssi?: number;
@@ -173,7 +173,7 @@ export default function ProductionLineSection({
                 if (existKey) {
                     const currentDevice = telemetryByDevice[device.deviceId]
                     // console.log(currentDevice)
-                    sumCount += (currentDevice?.metrics ? (currentDevice?.metrics?.count) : 0)
+                    sumCount += (currentDevice?.metrics ? (currentDevice?.metrics?.total) : 0)
                     sumError += (currentDevice?.metrics ? (currentDevice?.metrics?.error_count) : 0)
                 }
             })
@@ -262,21 +262,6 @@ export default function ProductionLineSection({
                 telemetryByDevice={telemetryByDevice ?? {}}
                 onSelectDevice={handleSelectDevice}
             />
-
-            <div className={styles.metricsSection}>
-                <div className={styles.metricsGrid}>
-                    <LossMetricCard title="Hao phí mộc" value={metrics.haophiMoc} />
-                    <LossMetricCard title="Hao phí nung" value={metrics.haophiNung} />
-                    <LossMetricCard
-                        title="Hao phí trước mài"
-                        value={metrics.haophiTruocMai}
-                    />
-                    <LossMetricCard
-                        title="Hao phí hoàn thiện"
-                        value={metrics.haophiHoanThien}
-                    />
-                </div>
-            </div>
         </div>
     );
 }

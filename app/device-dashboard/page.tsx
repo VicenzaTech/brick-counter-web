@@ -137,17 +137,6 @@ export interface ProductionLineInfo {
 // ============================================================================
 const API_BASE_URL = 'http://localhost:5555';
 
-const INITIAL_DEVICES_LINE1: DeviceData[] = [
-    { id: 'SAU-ME-01', name: 'Sau máy ép 1', count: 0, lastUpdated: '-' },
-    { id: 'SAU-ME-02', name: 'Sau máy ép 2', count: 0, lastUpdated: '-' },
-    { id: 'TRUOC-LN-01', name: 'Trước lò nung 1', count: 0, lastUpdated: '-' },
-    { id: 'TRUOC-LN-02', name: 'Trước lò nung 2', count: 0, lastUpdated: '-' },
-    { id: 'SAU-LN-01', name: 'Sau lò nung 1', count: 0, lastUpdated: '-' },
-    { id: 'TRUOC-MM-01', name: 'Trước máy mài mặt 1', count: 0, lastUpdated: '-' },
-    { id: 'SAU-MC-01', name: 'Sau máy mài cạnh 1', count: 0, lastUpdated: '-' },
-    { id: 'TRUOC-DH-01', name: 'Trước đóng hộp 1', count: 0, lastUpdated: '-' },
-];
-
 const getVariant = (
     value: number,
 ): 'primary' | 'success' | 'warning' | 'danger' | 'muted' => {
@@ -352,7 +341,6 @@ export function DeviceDashboardPage({
     );
     const handleDeviceTelemetry = useCallback((payload: any) => {
         const devId = payload.deviceId || payload.device_id;
-        console.log(`mqtt payload` ,payload)
         if (!devId) return;
         setTelemetryByDevice(prev => ({
             ...prev,
@@ -590,18 +578,18 @@ export function DeviceDashboardPage({
         }
     };
 
-    const handleResetLine = async (lineId: number) => {
+    const handleResetCluster = async (clusterId: number) => {
         const confirmed = confirm(
-            `Bạn chắc chắn muốn reset toàn bộ thiết bị của Dây chuyền ${lineId}?\n\nTất cả số đếm sẽ về 0.`,
+            `Bạn chắc chắn muốn reset toàn bộ thiết bị của Cluster ${clusterId}?\n\nTất cả số đếm sẽ về 0.`,
         );
         if (!confirmed) return;
 
-        setIsResetting((prev) => ({ ...prev, [lineId]: true }));
+        setIsResetting((prev) => ({ ...prev, [clusterId]: true }));
         setResetMessage(null);
 
         try {
             const response = await apiFetch(
-                `${API_BASE_URL}/api/mqtt/device-command/reset-line/${lineId}`,
+                `${API_BASE_URL}/api/mqtt/device-command/reset-counter/${clusterId}`,
                 {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -630,7 +618,7 @@ export function DeviceDashboardPage({
                 text: 'Lỗi kết nối đến server',
             });
         } finally {
-            setIsResetting((prev) => ({ ...prev, [lineId]: false }));
+            setIsResetting((prev) => ({ ...prev, [clusterId]: false }));
         }
     };
 
@@ -772,7 +760,12 @@ export function DeviceDashboardPage({
                                         devices={selectedDevices}
                                         linePositions={linePositions}
                                         telemetryByDevice={telemetryByDevice}
-                                        onReset={() => handleResetLine(selectedLineId)}
+                                        onReset={() => {
+                                            const cluster = deviceClusters.find(c => c.productionLineId === selectedLineId);
+                                            if (cluster) {
+                                                handleResetCluster(cluster.id);
+                                            }
+                                        }}
                                         isResetting={isResetting[selectedLineId] || false}
                                         showResetButton
                                         onConfig={() =>
@@ -786,6 +779,7 @@ export function DeviceDashboardPage({
                                         }}
                                     />
                                 )}
+
 
                                 {isAdmin &&
                                     activeTab === 'settings' &&
@@ -803,9 +797,12 @@ export function DeviceDashboardPage({
                                                     selectedLineInfo.name,
                                                 )
                                             }
-                                            onReset={() =>
-                                                handleResetLine(selectedLineId)
-                                            }
+                                            onReset={() => {
+                                                const cluster = deviceClusters.find(c => c.productionLineId === selectedLineId);
+                                                if (cluster) {
+                                                    handleResetCluster(cluster.id);  // ✅ Dùng cluster.id
+                                                }
+                                            }}
                                             onDeviceClick={handleDeviceClick}
                                         />
                                     )}
