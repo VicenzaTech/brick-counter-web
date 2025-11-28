@@ -465,3 +465,88 @@ body {
     min-width: 300px;
   }
 }
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+  animation: modalPop 0.25s ease-out;
+}
+
+@keyframes modalPop {
+  from { transform: scale(0.9); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.modalHeader {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.modalTitle {
+  margin: 0.5rem 0 0;
+  font-size: 1.5rem;
+  font-weight: bold;
+}
+
+.modalMessage {
+  text-align: center;
+  color: #444;
+  margin-bottom: 1.5rem;
+  line-height: 1.5;
+}
+
+.modalActions {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.modalBtnCancel {
+  padding: 0.75rem 1.5rem;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.modalBtnStop { background: #ff9800; color: white; }
+.modalBtnEmergency { background: #f44336; color: white; }
+.modalBtnConfirm { background: #4caf50; color: white; }
+.modalBtnResume { background: #2196f3; color: white; }
+
+.modalBtnCancel,
+.modalBtnStop,
+.modalBtnEmergency,
+.modalBtnConfirm,
+.modalBtnResume {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.modalBtnCancel:hover { background: #f5f5f5; }
+.modalBtnStop:hover { background: #e68900; }
+.modalBtnEmergency:hover { background: #d32f2f; }
+.modalBtnConfirm:hover { background: #43a047; }
+.modalBtnResume:hover { background: #1e88e5; }
+
+.modalWarningIcon { color: #ff9800; }
+.modalSuccessIcon { color: #4caf50; }
+.modalInfoIcon { color: #2196f3; }

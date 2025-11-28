@@ -43,6 +43,8 @@ interface StageState {
   // Thêm các thuộc tính mới
   quantity: number | null;
   area: number | null;
+  // Thêm thuộc tính để lưu trạng thái trước đó
+  previousStatus?: 'stopped' | 'running' | 'waiting_log';
 }
 
 export default function ProductionTracker() {
@@ -55,6 +57,8 @@ export default function ProductionTracker() {
   const [processingStage, setProcessingStage] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [showConfirmDialog, setShowConfirmDialog] = useState<{ show: boolean, message: string, onConfirm: (() => void) | null, onCancel: (() => void) | null }>({ show: false, message: '', onConfirm: null, onCancel: null });
+  const [showResumeConfirm, setShowResumeConfirm] = useState<{ show: boolean, lineId: number | null, stage: string }>({ show: false, lineId: null, stage: '' });
+  const [showLogConfirm, setShowLogConfirm] = useState<{ show: boolean, lineId: number | null, stage: string }>({ show: false, lineId: null, stage: '' });
   const stopActionRef = useRef<{ lineId: number | null, stage: string, isEmergency: boolean }>({ lineId: null, stage: '', isEmergency: false });
   const { accessToken } = useAuthStore.getState()
 
@@ -221,13 +225,21 @@ export default function ProductionTracker() {
     stagesState[lineId]?.[stage] || { status: 'stopped', productId: null, startTime: null, stopReason: null, quantity: null, area: null };
 
   const updateStageState = (lineId: number, stage: string, updates: Partial<StageState>) => {
-    setStagesState(prev => ({
-      ...prev,
-      [lineId]: {
-        ...prev[lineId],
-        [stage]: { ...getStageState(lineId, stage), ...updates }
-      }
-    }));
+    setStagesState(prev => {
+      const currentState = getStageState(lineId, stage);
+      return {
+        ...prev,
+        [lineId]: {
+          ...prev[lineId],
+          [stage]: { 
+            ...currentState, 
+            ...updates,
+            // Lưu trạng thái trước đó
+            previousStatus: currentState.status
+          }
+        }
+      };
+    });
   };
 
   const selectProduct = (lineId: number, stage: string, productId: number) => {
@@ -295,7 +307,12 @@ export default function ProductionTracker() {
       message: `Bạn có chắc chắn muốn ${isEmergency ? 'DỪNG KHẨN CẤP' : 'DỪNG'} công đoạn ${stage}?`,
       onConfirm: () => {
         const reason = isEmergency ? 'machine_error' : 'change_product';
-        updateStageState(lineId, stage, { status: 'waiting_log', stopReason: reason, isEmergency });
+        updateStageState(lineId, stage, { 
+          status: 'waiting_log', 
+          stopReason: reason, 
+          isEmergency,
+          startTime: getStageState(lineId, stage).startTime // Keep the start time for production logging
+        });
         showToast(`Công đoạn ${stage} đã dừng. Vui lòng chốt sản lượng.`, 'success');
         setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
       },
@@ -306,17 +323,27 @@ export default function ProductionTracker() {
   };
 
   const confirmLogProduction = (lineId: number, stage: string) => {
-    setShowConfirmDialog({
-      show: true,
-      message: 'Bạn có chắc chắn muốn chốt sản lượng?',
-      onConfirm: () => {
-        logProduction(lineId, stage);
-        setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
-      },
-      onCancel: () => {
-        setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
-      }
+    setShowLogConfirm({ show: true, lineId, stage });
+  };
+
+  const confirmResumeProduction = (lineId: number, stage: string) => {
+    setShowResumeConfirm({ show: true, lineId, stage });
+  };
+
+  const resumeProduction = (lineId: number, stage: string) => {
+    const state = getStageState(lineId, stage);
+    updateStageState(lineId, stage, { 
+      status: 'running',
+      stopReason: null,
+      isEmergency: false,
+      startTime: state.startTime || new Date().toISOString()
     });
+    showToast(`Đã tiếp tục công đoạn ${stage}`, 'success');
+    setShowResumeConfirm({ show: false, lineId: null, stage: '' });
+  };
+
+  const cancelResumeProduction = () => {
+    setShowResumeConfirm({ show: false, lineId: null, stage: '' });
   };
 
   const logProduction = async (lineId: number, stage: string) => {
@@ -328,7 +355,7 @@ export default function ProductionTracker() {
       // Hệ số quy đổi: 1m² = 11 viên (ví dụ cho gạch 30x30)
       const area = parseFloat((qty / 11).toFixed(2));
 
-      // Không còn showToast, cập nhật state trực tiếp
+      // Update the state with production data
       updateStageState(lineId, stage, {
         status: 'stopped',
         quantity: qty,
@@ -385,30 +412,104 @@ export default function ProductionTracker() {
     <div className={styles.container}>
       {/* Confirmation Dialog */}
       {showConfirmDialog.show && (
-        <div className={styles.confirmDialogOverlay}>
-          <div className={styles.confirmDialog}>
-            <div className={styles.confirmIcon}>
-              <AlertCircle size={48} className={styles.warningIcon} />
-            </div>
-            <h3>Xác nhận</h3>
-            <p className={styles.confirmMessage}>{showConfirmDialog.message}</p>
-            <div className={styles.confirmButtons}>
-              <button
-                className={`${styles.button} ${styles.buttonCancel}`}
-                onClick={() => showConfirmDialog.onCancel && showConfirmDialog.onCancel()}
-              >
-                <XCircle size={18} /> Hủy
-              </button>
-              <button
-                className={`${styles.button} ${styles.buttonConfirm}`}
-                onClick={() => showConfirmDialog.onConfirm && showConfirmDialog.onConfirm()}
-              >
-                <CheckCircle size={18} /> Xác nhận
-              </button>
-            </div>
+      <div className={styles.modalOverlay}>
+        <div className={styles.modal}>
+          <div className={styles.modalHeader}>
+            <AlertTriangle size={32} className={styles.modalWarningIcon} />
+            <h2 className={styles.modalTitle}>
+              {stopActionRef.current.isEmergency ? 'DỪNG KHẨN CẤP' : 'DỪNG SẢN XUẤT'}
+            </h2>
+          </div>
+          <p className={styles.modalMessage}>
+            {showConfirmDialog.message}
+          </p>
+          <div className={styles.modalActions}>
+            <button
+              className={styles.modalBtnCancel}
+              onClick={() => {
+                setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
+                stopActionRef.current = { lineId: null, stage: '', isEmergency: false };
+              }}
+            >
+              Hủy bỏ
+            </button>
+            <button
+              className={stopActionRef.current.isEmergency ? styles.modalBtnEmergency : styles.modalBtnStop}
+              onClick={() => {
+                showConfirmDialog.onConfirm?.();
+                stopActionRef.current = { lineId: null, stage: '', isEmergency: false };
+              }}
+            >
+              {stopActionRef.current.isEmergency ? 'DỪNG GẤP' : 'Dừng'}
+            </button>
           </div>
         </div>
-      )}
+      </div>
+    )}
+
+      {/* Resume Production Confirmation Dialog */}
+      {showLogConfirm.show && (
+      <div className={styles.modalOverlay}>
+        <div className={styles.modal}>
+          <div className={styles.modalHeader}>
+            <CheckCircle size={32} className={styles.modalSuccessIcon} />
+            <h2 className={styles.modalTitle}>Chốt sản lượng</h2>
+          </div>
+          <p className={styles.modalMessage}>
+            Bạn có chắc chắn muốn chốt sản lượng cho công đoạn <strong>{showLogConfirm.stage}</strong>?
+          </p>
+          <div className={styles.modalActions}>
+            <button
+              className={styles.modalBtnCancel}
+              onClick={() => setShowLogConfirm({ show: false, lineId: null, stage: '' })}
+            >
+              Hủy
+            </button>
+            <button
+              className={styles.modalBtnConfirm}
+              disabled={processingStage === showLogConfirm.stage}
+              onClick={() => {
+                logProduction(showLogConfirm.lineId!, showLogConfirm.stage);
+                setShowLogConfirm({ show: false, lineId: null, stage: '' });
+              }}
+            >
+              {processingStage === showLogConfirm.stage ? 'Đang chốt...' : 'Xác nhận chốt'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+
+      {/* Log Production Confirmation Dialog */}
+      {showResumeConfirm.show && (
+      <div className={styles.modalOverlay}>
+        <div className={styles.modal}>
+          <div className={styles.modalHeader}>
+            <RotateCcw size={32} className={styles.modalInfoIcon} />
+            <h2 className={styles.modalTitle}>Tiếp tục sản xuất</h2>
+          </div>
+          <p className={styles.modalMessage}>
+            Bạn muốn quay lại sản xuất công đoạn <strong>{showResumeConfirm.stage}</strong> mà không chốt sản lượng?
+          </p>
+          <div className={styles.modalActions}>
+            <button
+              className={styles.modalBtnCancel}
+              onClick={() => setShowResumeConfirm({ show: false, lineId: null, stage: '' })}
+            >
+              Hủy
+            </button>
+            <button
+              className={styles.modalBtnResume}
+              onClick={() => {
+                resumeProduction(showResumeConfirm.lineId!, showResumeConfirm.stage);
+              }}
+            >
+              Quay lại sản xuất
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
 
       <div className={styles.toastContainer}>
         {toasts.map(t => (
@@ -583,11 +684,11 @@ export default function ProductionTracker() {
                       {processingStage === stage ? 'ĐANG CHỐT...' : 'CHỐT SẢN LƯỢNG'}
                     </button>
                     <button
-                      onClick={() => selectedLine !== null && startProduction(selectedLine, stage)}
-                      disabled={!state.productId || selectedLine === null || processingStage === stage}
-                      className={`${styles.button} ${styles.buttonSecondary} ${!state.productId || selectedLine === null || processingStage === stage ? styles.buttonDisabled : ''}`}
+                      onClick={() => selectedLine !== null && confirmResumeProduction(selectedLine, stage)}
+                      disabled={processingStage === stage || selectedLine === null}
+                      className={`${styles.button} ${styles.buttonSecondary} ${processingStage === stage || selectedLine === null ? styles.buttonDisabled : ''}`}
                     >
-                      <RotateCcw size={20} /> TIẾP TỤC
+                      <RotateCcw size={20} /> QUAY LẠI SẢN XUẤT
                     </button>
                   </div>
                 </div>
