@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Factory, Play, Pause, AlertTriangle, TrendingUp,
-  RefreshCw, CheckCircle, XCircle, Clock, Package
+  RefreshCw, CheckCircle, XCircle, Clock, Package, AlertCircle, RotateCcw
 } from 'lucide-react';
 import styles from './ProductionTracker.module.css';
 import { useAuthStore } from '@/store/auth.store';
@@ -45,7 +45,6 @@ interface StageState {
   area: number | null;
 }
 
-
 export default function ProductionTracker() {
   const [products, setProducts] = useState<Product[]>([]);
   const [factories, setFactories] = useState<FactoryData[]>([]);
@@ -55,7 +54,10 @@ export default function ProductionTracker() {
   const [stagesState, setStagesState] = useState<Record<number, Record<string, StageState>>>({});
   const [processingStage, setProcessingStage] = useState<string | null>(null);
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const [showConfirmDialog, setShowConfirmDialog] = useState<{ show: boolean, message: string, onConfirm: (() => void) | null, onCancel: (() => void) | null }>({ show: false, message: '', onConfirm: null, onCancel: null });
+  const stopActionRef = useRef<{ lineId: number | null, stage: string, isEmergency: boolean }>({ lineId: null, stage: '', isEmergency: false });
   const { accessToken } = useAuthStore.getState()
+
   useEffect(() => {
     fetchFactories();
     fetchProducts();
@@ -63,108 +65,107 @@ export default function ProductionTracker() {
   }, []);
 
   const fetchFactories = async () => {
-  try {
-    setLoading(true);
-    const { accessToken } = useAuthStore.getState();
+    try {
+      setLoading(true);
+      const { accessToken } = useAuthStore.getState();
 
-    const response = await fetch('http://localhost:5555/api/workshops', {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
-      cache: 'no-store'
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to fetch factories');
-    }
-
-    const data = await response.json();
-    
-    // Ensure each line has a stages array
-    const factoriesWithStages = data.map((factory: any) => ({
-      ...factory,
-      lines: factory.lines?.map((line: any) => ({
-        ...line,
-        stages: line.stages || [] // Ensure stages is always an array
-      })) || []
-    }));
-
-    setFactories(factoriesWithStages);
-
-    if (factoriesWithStages.length > 0) {
-      setSelectedFactory(factoriesWithStages[0].id);
-      if (factoriesWithStages[0].lines.length > 0) {
-        setSelectedLine(factoriesWithStages[0].lines[0].id);
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching factories:', error);
-    showToast('Không thể tải danh sách nhà máy!', 'error');
-  } finally {
-    setLoading(false);
-  }
-};
-
-  
-
-const fetchStagesForLine = async (lineId: number) => {
-  try {
-    const { accessToken } = useAuthStore.getState();
-
-    const response = await fetch(
-      `http://localhost:5555/api/production-stages/by-production-line-id/${lineId}`,
-      {
+      const response = await fetch('http://localhost:5555/api/workshops', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to fetch stages');
-    }
-
-    const stages = await response.json();
-    console.log('API Response:', JSON.stringify(stages, null, 2)); // Log the exact response
-
-    // Force update the state to ensure it triggers a re-render
-    setFactories(prevFactories => {
-      console.log('Previous factories:', JSON.parse(JSON.stringify(prevFactories))); // Log previous state
-      
-      const updated = prevFactories.map(factory => {
-        // Create a new factory object with updated lines
-        const updatedLines = factory.lines.map(line => {
-          if (line.id === lineId) {
-            console.log(`Updating line ${lineId} with stages:`, stages); // Debug log
-            return {
-              ...line,
-              stages: Array.isArray(stages) 
-                ? stages.map((s: any) => s.name || s.stageName || s.title || 'Unnamed Stage')
-                : []
-            };
-          }
-          return line;
-        });
-
-        return {
-          ...factory,
-          lines: updatedLines
-        };
+        },
+        cache: 'no-store'
       });
 
-      console.log('Updated factories:', JSON.parse(JSON.stringify(updated))); // Log new state
-      return updated;
-    });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to fetch factories');
+      }
 
-  } catch (error) {
-    console.error('Error in fetchStagesForLine:', error);
-    showToast('Không thể tải danh sách công đoạn!', 'error');
-  }
-};
+      const data = await response.json();
+
+      // Ensure each line has a stages array
+      const factoriesWithStages = data.map((factory: any) => ({
+        ...factory,
+        lines: factory.lines?.map((line: any) => ({
+          ...line,
+          stages: line.stages || [] // Ensure stages is always an array
+        })) || []
+      }));
+
+      setFactories(factoriesWithStages);
+
+      if (factoriesWithStages.length > 0) {
+        setSelectedFactory(factoriesWithStages[0].id);
+        if (factoriesWithStages[0].lines.length > 0) {
+          setSelectedLine(factoriesWithStages[0].lines[0].id);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching factories:', error);
+      showToast('Không thể tải danh sách nhà máy!', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchStagesForLine = async (lineId: number) => {
+    try {
+      const { accessToken } = useAuthStore.getState();
+
+      const response = await fetch(
+        `http://localhost:5555/api/production-stages/by-production-line-id/${lineId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to fetch stages');
+      }
+
+      const stages = await response.json();
+      console.log('API Response:', JSON.stringify(stages, null, 2)); // Log the exact response
+
+      // Force update the state to ensure it triggers a re-render
+      setFactories(prevFactories => {
+        console.log('Previous factories:', JSON.parse(JSON.stringify(prevFactories))); // Log previous state
+
+        const updated = prevFactories.map(factory => {
+          // Create a new factory object with updated lines
+          const updatedLines = factory.lines.map(line => {
+            if (line.id === lineId) {
+              console.log(`Updating line ${lineId} with stages:`, stages); // Debug log
+              return {
+                ...line,
+                stages: Array.isArray(stages)
+                  ? stages.map((s: any) => s.name || s.stageName || s.title || 'Unnamed Stage')
+                  : []
+              };
+            }
+            return line;
+          });
+
+          return {
+            ...factory,
+            lines: updatedLines
+          };
+        });
+
+        console.log('Updated factories:', JSON.parse(JSON.stringify(updated))); // Log new state
+        return updated;
+      });
+
+    } catch (error) {
+      console.error('Error in fetchStagesForLine:', error);
+      showToast('Không thể tải danh sách công đoạn!', 'error');
+    }
+  };
+
   useEffect(() => {
     if (selectedLine) {
       fetchStagesForLine(selectedLine);
@@ -287,9 +288,35 @@ const fetchStagesForLine = async (lineId: number) => {
     }
   };
 
-  const stopProduction = (lineId: number, stage: string, reason: string, emergency = false) => {
-    updateStageState(lineId, stage, { status: 'waiting_log', stopReason: reason, isEmergency: emergency });
-    showToast(`Công đoạn ${stage} đã dừng. Vui lòng chốt sản lượng.`, 'success');
+  const confirmStopProduction = (lineId: number, stage: string, isEmergency: boolean) => {
+    stopActionRef.current = { lineId, stage, isEmergency };
+    setShowConfirmDialog({
+      show: true,
+      message: `Bạn có chắc chắn muốn ${isEmergency ? 'DỪNG KHẨN CẤP' : 'DỪNG'} công đoạn ${stage}?`,
+      onConfirm: () => {
+        const reason = isEmergency ? 'machine_error' : 'change_product';
+        updateStageState(lineId, stage, { status: 'waiting_log', stopReason: reason, isEmergency });
+        showToast(`Công đoạn ${stage} đã dừng. Vui lòng chốt sản lượng.`, 'success');
+        setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
+      },
+      onCancel: () => {
+        setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
+      }
+    });
+  };
+
+  const confirmLogProduction = (lineId: number, stage: string) => {
+    setShowConfirmDialog({
+      show: true,
+      message: 'Bạn có chắc chắn muốn chốt sản lượng?',
+      onConfirm: () => {
+        logProduction(lineId, stage);
+        setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
+      },
+      onCancel: () => {
+        setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
+      }
+    });
   };
 
   const logProduction = async (lineId: number, stage: string) => {
@@ -310,6 +337,7 @@ const fetchStagesForLine = async (lineId: number) => {
         stopReason: null,
         isEmergency: false
       });
+      showToast(`Đã chốt sản lượng công đoạn ${stage}: ${qty.toLocaleString()} viên (${area} m²)`, 'success');
     } catch {
       showToast('Lỗi khi chốt sản lượng!', 'error');
     } finally {
@@ -328,6 +356,20 @@ const fetchStagesForLine = async (lineId: number) => {
     return `${h}h ${m}m`;
   };
 
+  // Stage descriptions for each stage
+  const stageDescriptions: Record<string, string> = {
+    'Đúc gạch mộc': 'Công đoạn tạo hình viên gạch từ nguyên liệu thô',
+    'Phơi gạch': 'Làm khô gạch tự nhiên trước khi nung',
+    'Nung gạch': 'Nung gạch ở nhiệt độ cao để tạo độ cứng',
+    'Phân loại': 'Kiểm tra và phân loại gạch thành phẩm',
+    'Đóng gói': 'Đóng gói sản phẩm trước khi xuất xưởng'
+  };
+
+  // Get stage description, fallback to default if not found
+  const getStageDescription = (stageName: string): string => {
+    return stageDescriptions[stageName] || 'Công đoạn sản xuất gạch';
+  };
+
   if (loading) {
     return (
       <div className={styles.loadingContainer}>
@@ -341,6 +383,33 @@ const fetchStagesForLine = async (lineId: number) => {
 
   return (
     <div className={styles.container}>
+      {/* Confirmation Dialog */}
+      {showConfirmDialog.show && (
+        <div className={styles.confirmDialogOverlay}>
+          <div className={styles.confirmDialog}>
+            <div className={styles.confirmIcon}>
+              <AlertCircle size={48} className={styles.warningIcon} />
+            </div>
+            <h3>Xác nhận</h3>
+            <p className={styles.confirmMessage}>{showConfirmDialog.message}</p>
+            <div className={styles.confirmButtons}>
+              <button
+                className={`${styles.button} ${styles.buttonCancel}`}
+                onClick={() => showConfirmDialog.onCancel && showConfirmDialog.onCancel()}
+              >
+                <XCircle size={18} /> Hủy
+              </button>
+              <button
+                className={`${styles.button} ${styles.buttonConfirm}`}
+                onClick={() => showConfirmDialog.onConfirm && showConfirmDialog.onConfirm()}
+              >
+                <CheckCircle size={18} /> Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className={styles.toastContainer}>
         {toasts.map(t => (
           <div key={t.id} className={`${styles.toast} ${t.type === 'success' ? styles.toastSuccess : styles.toastError}`}>
@@ -394,9 +463,9 @@ const fetchStagesForLine = async (lineId: number) => {
 
       <div className={styles.stagesGrid}>
         {(currentLine?.stages || []).map((stage: string, index: number) => {
-        const state = getStageState(selectedLine ?? 0, stage);
-        const product = products.find(p => p.id === state.productId);
-        const runningTime = getRunningTime(state.startTime);
+          const state = getStageState(selectedLine ?? 0, stage);
+          const product = products.find(p => p.id === state.productId);
+          const runningTime = getRunningTime(state.startTime);
 
           return (
             <div
@@ -407,7 +476,10 @@ const fetchStagesForLine = async (lineId: number) => {
                 }`}
             >
               <div className={styles.stageHeader}>
-                <h3 className={styles.stageName}>{stage}</h3>
+                <div>
+                  <h3 className={styles.stageName}>{stage}</h3>
+                  <p className={styles.stageDescription}>{getStageDescription(stage)}</p>
+                </div>
                 <span className={`${styles.statusBadge} ${state.status === 'running' ? styles.statusRunning :
                   state.status === 'waiting_log' ? styles.statusWaiting :
                     styles.statusStopped
@@ -433,7 +505,7 @@ const fetchStagesForLine = async (lineId: number) => {
                       <Package size={16} style={{ marginRight: '6px' }} />
                       Chọn dòng gạch
                     </label>
-                      <select
+                    <select
                       value={state.productId || ''}
                       onChange={e => {
                         if (selectedLine !== null) {
@@ -471,14 +543,14 @@ const fetchStagesForLine = async (lineId: number) => {
 
                   <div className={styles.buttonGroup}>
                     <button
-                      onClick={() => selectedLine !== null && stopProduction(selectedLine, stage, 'change_product')}
+                      onClick={() => selectedLine !== null && confirmStopProduction(selectedLine, stage, false)}
                       disabled={selectedLine === null}
                       className={`${styles.button} ${styles.buttonStop} ${selectedLine === null ? styles.buttonDisabled : ''}`}
                     >
                       <Pause size={20} /> DỪNG
                     </button>
                     <button
-                      onClick={() => selectedLine !== null && stopProduction(selectedLine, stage, 'machine_error', true)}
+                      onClick={() => selectedLine !== null && confirmStopProduction(selectedLine, stage, true)}
                       disabled={selectedLine === null}
                       className={`${styles.button} ${styles.buttonEmergency} ${selectedLine === null ? styles.buttonDisabled : ''}`}
                     >
@@ -501,14 +573,23 @@ const fetchStagesForLine = async (lineId: number) => {
                     )}
                   </div>
 
-                  <button
-                    onClick={() => selectedLine !== null && logProduction(selectedLine, stage)}
-                    disabled={processingStage === stage || selectedLine === null}
-                    className={`${styles.button} ${styles.buttonLog} ${processingStage === stage || selectedLine === null ? styles.buttonDisabled : ''}`}
-                  >
-                    <TrendingUp size={20} />
-                    {processingStage === stage ? 'ĐANG CHỐT...' : 'CHỐT SẢN LƯỢNG'}
-                  </button>
+                  <div className={styles.buttonGroup}>
+                    <button
+                      onClick={() => selectedLine !== null && confirmLogProduction(selectedLine, stage)}
+                      disabled={processingStage === stage || selectedLine === null}
+                      className={`${styles.button} ${styles.buttonLog} ${processingStage === stage || selectedLine === null ? styles.buttonDisabled : ''}`}
+                    >
+                      <TrendingUp size={20} />
+                      {processingStage === stage ? 'ĐANG CHỐT...' : 'CHỐT SẢN LƯỢNG'}
+                    </button>
+                    <button
+                      onClick={() => selectedLine !== null && startProduction(selectedLine, stage)}
+                      disabled={!state.productId || selectedLine === null || processingStage === stage}
+                      className={`${styles.button} ${styles.buttonSecondary} ${!state.productId || selectedLine === null || processingStage === stage ? styles.buttonDisabled : ''}`}
+                    >
+                      <RotateCcw size={20} /> TIẾP TỤC
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
