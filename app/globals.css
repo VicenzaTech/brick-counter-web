@@ -5,12 +5,13 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #f7fafc;
+  /* background-color: #f6f8f8; */
   color: #2d3748;
   margin: 0;
   padding: 0;
@@ -22,6 +23,9 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  padding-left: 72px;
+  background-color: #eef2ff;
+  transition: padding-left 0.15s ease;
 }
 
 .main-content {
@@ -31,7 +35,12 @@ body {
 }
 
 /* Typography */
-h1, h2, h3, h4, h5, h6 {
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
   margin: 0;
   font-weight: 700;
   line-height: 1.2;
@@ -157,4 +166,16 @@ button {
 
 .metric-value.red {
   color: #e53e3e;
+}
+
+.app-layout.app-layout--sidebar-expanded {
+  padding-left: 220px;
+}
+
+@media (max-width: 768px) {
+  .app-layout,
+  .app-layout.app-layout--sidebar-expanded {
+    padding-left: 0;
+    padding-bottom: 64px;
+  }
 }

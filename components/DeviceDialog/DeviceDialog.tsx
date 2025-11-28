@@ -76,11 +76,13 @@ export function DeviceDialog({
         positionId:
             initialDevice && positions.length
                 ? positions.find((p) =>
-                    (p.devices || []).some((d) => d.id === initialDevice.id),
-                )?.id ?? ''
+                      (p.devices || []).some((d) => d.id === initialDevice.id),
+                  )?.id ?? ''
                 : '',
-        interval_message_time: initialDevice?.extraInfo.interval_message_time ?? 60,
-        qosDefault: (initialDevice?.extraInfo.telemetry?.qos as 0 | 1 | 2) ?? 1,
+        interval_message_time:
+            initialDevice?.extraInfo.interval_message_time ?? 60,
+        qosDefault:
+            (initialDevice?.extraInfo.telemetry?.qos as 0 | 1 | 2) ?? 1,
         telemetryTopic:
             initialDevice?.extraInfo.telemetry?.topic ??
             (initialDevice?.deviceId
@@ -88,7 +90,7 @@ export function DeviceDialog({
                 : ''),
         commands:
             initialDevice?.extraInfo.commands?.map((c) => ({
-                type: c.type ?? 'custom',
+                type: (c.type as DeviceCommandType) ?? 'custom',
                 topic: c.topic ?? '',
                 payloadTemplate: c.payloadTemplate
                     ? JSON.stringify(c.payloadTemplate, null, 2)
@@ -110,27 +112,43 @@ export function DeviceDialog({
             : '',
     };
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555/api';
+    const API_URL =
+        process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555/api';
 
-    const handleSubmit = async (values: DeviceFormValues, { setSubmitting }: any) => {
+    const handleSubmit = async (
+        values: DeviceFormValues,
+        { setSubmitting }: any,
+    ) => {
         setFormError(null);
+
         const telemetryTopic =
             values.telemetryTopic.trim() ||
-            (values.device_id ? `devices/${values.device_id}/telemetry` : undefined);
+            (values.device_id
+                ? `devices/${values.device_id}/telemetry`
+                : undefined);
 
-        const commands = [];
+        const commands: {
+            type: DeviceCommandType;
+            topic: string;
+            payloadTemplate?: any;
+        }[] = [];
+
         for (const cmd of values.commands) {
             if (!cmd.topic.trim()) continue;
+
             let payload: any = undefined;
             if (cmd.payloadTemplate.trim()) {
                 try {
                     payload = JSON.parse(cmd.payloadTemplate);
                 } catch {
-                    alert(`Payload JSON của lệnh ${cmd.type} không hợp lệ.`);
+                    alert(
+                        `Payload JSON của lệnh ${cmd.type} không hợp lệ.`,
+                    );
                     setSubmitting(false);
                     return;
                 }
             }
+
             commands.push({
                 type: cmd.type,
                 topic: cmd.topic.trim(),
@@ -143,7 +161,9 @@ export function DeviceDialog({
             try {
                 other = JSON.parse(values.otherJson);
             } catch {
-                alert('JSON cấu hình khác (other) không hợp lệ. Vui lòng kiểm tra lại.');
+                alert(
+                    'JSON cấu hình khác (other) không hợp lệ. Vui lòng kiểm tra lại.',
+                );
                 setSubmitting(false);
                 return;
             }
@@ -179,14 +199,26 @@ export function DeviceDialog({
 
             if (!res.ok) {
                 console.error('Error saving device');
-                setFormError('Lưu thiết bị thất bại. Vui lòng thử lại.');
+                let message =
+                    'Lưu thiết bị thất bại. Vui lòng thử lại.';
+                try {
+                    const errorBody = await res.json();
+                    if (errorBody?.message) {
+                        message = errorBody.message;
+                    }
+                } catch {
+                    // ignore parse error, dùng message mặc định
+                }
+                setFormError(message);
                 return;
             }
 
-            const json = await res.json();
-            const saved = json as DeviceInfo;
-            onSaved?.(saved);
+            const json = (await res.json()) as DeviceInfo;
+            onSaved?.(json);
             onClose();
+            if (typeof window !== 'undefined') {
+                window.location.reload();
+            }
         } catch (error) {
             console.error('Error saving device', error);
             setFormError('Có lỗi xảy ra khi lưu thiết bị.');
@@ -215,9 +247,12 @@ export function DeviceDialog({
                     return (
                         <Form className={styles.form}>
                             <div>
-                                <h4 className={styles.sectionTitle}>Thông tin chung</h4>
+                                <h4 className={styles.sectionTitle}>
+                                    Thông tin chung
+                                </h4>
                                 <p className={styles.sectionDescription}>
-                                    Nhập thông tin định danh và phân loại cho thiết bị.
+                                    Nhập thông tin định danh và phân loại
+                                    cho thiết bị.
                                 </p>
                                 <div className={styles.twoColumns}>
                                     <InputField
@@ -248,7 +283,8 @@ export function DeviceDialog({
                                     Vị trí & gửi dữ liệu
                                 </h4>
                                 <p className={styles.sectionDescription}>
-                                    Cấu hình vị trí trên dây chuyền, QoS và chu kỳ gửi telemetry.
+                                    Cấu hình vị trí trên dây chuyền, QoS và
+                                    chu kỳ gửi telemetry.
                                 </p>
                                 <div className={styles.twoColumns}>
                                     <SelectField
@@ -267,9 +303,15 @@ export function DeviceDialog({
                                         name="qosDefault"
                                         label="QoS mặc định"
                                     >
-                                        <option value={0}>0 - At most once</option>
-                                        <option value={1}>1 - At least once</option>
-                                        <option value={2}>2 - Exactly once</option>
+                                        <option value={0}>
+                                            0 - At most once
+                                        </option>
+                                        <option value={1}>
+                                            1 - At least once
+                                        </option>
+                                        <option value={2}>
+                                            2 - Exactly once
+                                        </option>
                                     </SelectField>
                                     <InputField
                                         name="interval_message_time"
@@ -282,97 +324,151 @@ export function DeviceDialog({
                                     <InputField
                                         name="telemetryTopic"
                                         label="Telemetry topic (tùy chọn)"
-                                        placeholder="Nếu để trống sẽ dùng devices/{deviceId}/telemetry"
+                                        placeholder={subTopicPreview}
                                     />
-                                </div>
-                                <div>
-                                    <p className={styles.sectionDescription}>
-                                        Topic gợi ý (readonly)
-                                    </p>
-                                    <div className={styles.subTopicBox}>{subTopicPreview}</div>
                                 </div>
                             </div>
 
                             <div>
-                                <h4 className={styles.sectionTitle}>Lệnh điều khiển</h4>
+                                <h4 className={styles.sectionTitle}>
+                                    Lệnh điều khiển
+                                </h4>
                                 <p className={styles.sectionDescription}>
-                                    Theo DeviceExtraInfo.commands (type / topic / payloadTemplate).
+                                    Cấu hình danh sách lệnh MQTT cho thiết
+                                    bị.
                                 </p>
                                 <div className={styles.commandList}>
                                     {values.commands.map((cmd, idx) => (
-                                        <div key={idx} className={styles.commandRow}>
-                                            <label className={styles.labelInline}>
-                                                Type
+                                        <div
+                                            key={idx}
+                                            className={styles.commandRow}
+                                        >
+                                            <label
+                                                className={
+                                                    styles.labelInline
+                                                }
+                                            >
+                                                Loại lệnh
                                                 <select
                                                     className={styles.input}
                                                     value={cmd.type}
                                                     onChange={(e) => {
-                                                        const next = [...values.commands];
-                                                        next[idx].type = e.target
-                                                            .value as DeviceCommandType;
-                                                        setFieldValue('commands', next);
+                                                        const next = [
+                                                            ...values.commands,
+                                                        ];
+                                                        next[idx].type =
+                                                            e.target
+                                                                .value as DeviceCommandType;
+                                                        setFieldValue(
+                                                            'commands',
+                                                            next,
+                                                        );
                                                     }}
                                                 >
-                                                    <option value="reset">reset</option>
+                                                    <option value="reset">
+                                                        reset
+                                                    </option>
                                                     <option value="reset_counter">
                                                         reset_counter
                                                     </option>
-                                                    <option value="calibrate">calibrate</option>
-                                                    <option value="custom">custom</option>
+                                                    <option value="calibrate">
+                                                        calibrate
+                                                    </option>
+                                                    <option value="custom">
+                                                        custom
+                                                    </option>
                                                 </select>
                                             </label>
-                                            <label className={styles.labelInline}>
+                                            <label
+                                                className={
+                                                    styles.labelInline
+                                                }
+                                            >
                                                 Topic
                                                 <input
                                                     className={styles.input}
                                                     value={cmd.topic}
                                                     onChange={(e) => {
-                                                        const next = [...values.commands];
-                                                        next[idx].topic = e.target.value;
-                                                        setFieldValue('commands', next);
+                                                        const next = [
+                                                            ...values.commands,
+                                                        ];
+                                                        next[idx].topic =
+                                                            e.target.value;
+                                                        setFieldValue(
+                                                            'commands',
+                                                            next,
+                                                        );
                                                     }}
                                                     placeholder="/devices/{deviceId}/commands/reset"
                                                 />
                                             </label>
-                                            <label className={styles.labelInline}>
+                                            <label
+                                                className={
+                                                    styles.labelInline
+                                                }
+                                            >
                                                 Payload (JSON, tùy chọn)
                                                 <input
                                                     className={styles.input}
                                                     value={cmd.payloadTemplate}
                                                     onChange={(e) => {
-                                                        const next = [...values.commands];
-                                                        next[idx].payloadTemplate =
+                                                        const next = [
+                                                            ...values.commands,
+                                                        ];
+                                                        next[
+                                                            idx
+                                                        ].payloadTemplate =
                                                             e.target.value;
-                                                        setFieldValue('commands', next);
+                                                        setFieldValue(
+                                                            'commands',
+                                                            next,
+                                                        );
                                                     }}
                                                     placeholder='{"action":"reset"}'
                                                 />
                                             </label>
-                                            <div className={styles.actionsRow}>
+                                            <div
+                                                className={styles.actionsRow}
+                                            >
                                                 <button
                                                     type="button"
-                                                    className={styles.secondaryButton}
+                                                    className={
+                                                        styles.secondaryButton
+                                                    }
                                                     onClick={() => {
-                                                        const next = [...values.commands];
+                                                        const next = [
+                                                            ...values.commands,
+                                                        ];
                                                         next.splice(idx, 1);
-                                                        setFieldValue('commands', next);
+                                                        setFieldValue(
+                                                            'commands',
+                                                            next,
+                                                        );
                                                     }}
                                                 >
                                                     Xóa lệnh
                                                 </button>
-                                                {idx === values.commands.length - 1 && (
+                                                {idx ===
+                                                    values.commands.length -
+                                                        1 && (
                                                     <button
                                                         type="button"
-                                                        className={styles.primaryButton}
+                                                        className={
+                                                            styles.primaryButton
+                                                        }
                                                         onClick={() =>
-                                                            setFieldValue('commands', [
-                                                                ...values.commands,
-                                                                {
-                                                                    type: 'custom' as DeviceCommandType,
-                                                                    topic: '',
-                                                                    payloadTemplate: '',
-                                                                },
-                                                            ])
+                                                            setFieldValue(
+                                                                'commands',
+                                                                [
+                                                                    ...values.commands,
+                                                                    {
+                                                                        type: 'custom' as DeviceCommandType,
+                                                                        topic: '',
+                                                                        payloadTemplate:
+                                                                            '',
+                                                                    },
+                                                                ],
+                                                            )
                                                         }
                                                     >
                                                         Thêm lệnh
@@ -389,22 +485,38 @@ export function DeviceDialog({
                                     Cấu hình khác (other)
                                 </h4>
                                 <p className={styles.sectionDescription}>
-                                    Lưu trữ các cấu hình mở rộng cho thiết bị (trường{' '}
-                                    <code>other</code> trong DeviceExtraInfo).
+                                    Lưu trữ các cấu hình mở rộng cho thiết bị
+                                    (trường <code>other</code> trong
+                                    DeviceExtraInfo).
                                 </p>
                                 <textarea
                                     className={styles.textarea}
                                     rows={3}
                                     value={values.otherJson}
-                                    onChange={(e) => setFieldValue('otherJson', e.target.value)}
+                                    onChange={(e) =>
+                                        setFieldValue(
+                                            'otherJson',
+                                            e.target.value,
+                                        )
+                                    }
                                     placeholder='{"note": "Ví dụ cấu hình riêng"}'
                                 />
                             </div>
 
                             <div className={styles.metaRow}>
-                                <span className={styles.metaLabel}>Dây chuyền</span>
-                                <span className={styles.metaValue}>#{lineId}</span>
+                                <span className={styles.metaLabel}>
+                                    Dây chuyền
+                                </span>
+                                <span className={styles.metaValue}>
+                                    #{lineId}
+                                </span>
                             </div>
+
+                            {formError && (
+                                <div className={styles.formError}>
+                                    {formError}
+                                </div>
+                            )}
 
                             <div className={styles.actions}>
                                 <button
@@ -423,8 +535,8 @@ export function DeviceDialog({
                                     {isSubmitting
                                         ? 'Đang lưu...'
                                         : isEdit
-                                            ? 'Cập nhật thiết bị'
-                                            : 'Thêm thiết bị'}
+                                        ? 'Cập nhật thiết bị'
+                                        : 'Thêm thiết bị'}
                                 </button>
                             </div>
                         </Form>

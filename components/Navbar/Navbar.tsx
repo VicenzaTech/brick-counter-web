@@ -2,88 +2,118 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Factory, LayoutDashboard, Database, Activity, Menu, X, TrendingUp, Notebook } from 'lucide-react';
-import { useState } from 'react';
+import {
+    Factory,
+    LayoutDashboard,
+    LayoutGrid,
+    Database,
+    BarChart2,
+    Notebook,
+    ChevronLeft,
+    Settings,
+    BrickWall,
+} from 'lucide-react';
+import { useEffect, useState } from 'react';
 import styles from './Navbar.module.css';
 import { authStateSelector, useAuthStore } from '@/store/auth.store';
 import { useShallow } from 'zustand/shallow';
 import UserInfo from '../UserInfo/UserInfo';
 
 const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/production-tracker', label: 'Cấu hình dây chuyền', icon: TrendingUp },
-    { href: '/device-dashboard', label: 'Phân tích thiết bị', icon: Activity },
-    { href: '/brick-types', label: 'Quản lý dòng gạch', icon: Database },
-    { href: '/activty-logs', label: 'Nhật ký hoạt động', icon:  Notebook },
+    {
+        href: '/dashboard',
+        icon: LayoutDashboard,
+        label: 'Tổng quan',
+    },
+    {
+        href: '/activity-logs',
+        icon: Notebook,
+        label: 'Nhật ký',
+    },
+    {
+        href: '/brick-types',
+        icon: Database,
+        label: 'Dạng gạch',
+    },
+    {
+        href: '/brick-analytics',
+        icon: BrickWall,
+        label: 'Phân tích gạch',
+    },
+    {
+        href: '/device-dashboard',
+        icon: Settings,
+        label: 'Cài đặt',
+    },
 ];
 
 export default function Navbar() {
     const pathname = usePathname();
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
-    const { user, isAuthenticated } = useAuthStore(useShallow(authStateSelector))
+    const { user, isAuthenticated } = useAuthStore(useShallow(authStateSelector));
+    const [expanded, setExpanded] = useState(false);
+
+    useEffect(() => {
+        if (typeof document === 'undefined') return;
+        const root = document.querySelector('.app-layout');
+        if (!root) return;
+
+        if (expanded) {
+            root.classList.add('app-layout--sidebar-expanded');
+        } else {
+            root.classList.remove('app-layout--sidebar-expanded');
+        }
+    }, [expanded]);
+
+    if (!isAuthenticated) {
+        return null;
+    }
+
     return (
-        isAuthenticated && <nav className={styles.navbar}>
-            <div className={styles.container}>
-                {/* Logo */}
-                <Link href="/" className={styles.logo}>
-                    <Factory size={32} />
-                    <div className={styles.logoText}>
-                        <span className={styles.logoTitle}>VicenzaTech</span>
-                        <span className={styles.logoSubtitle}>Tile Counter System</span>
-                    </div>
-                </Link>
-
-                {/* Desktop Navigation */}
-                <div className={styles.navLinks}>
-                    {navItems.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = pathname === item.href;
-                        return (
-                            <Link
-                                key={item.href}
-                                href={item.href}
-                                className={`${styles.navLink} ${isActive ? styles.active : ''}`}
-                            >
-                                <Icon size={20} />
-                                <span>{item.label}</span>
-                            </Link>
-                        );
-                    })}
-                </div>
-
-                {/* User Info */}
-                <UserInfo username={user?.username} role={user?.roles ?? ""} />
-
-                {/* Mobile Menu Button */}
+        <aside
+            className={`${styles.sidebar} ${expanded ? styles.sidebarExpanded : ''}`}
+            aria-label="Điều hướng chính"
+        >
+            <div className={styles.sidebarInner}>
                 <button
-                    className={styles.menuButton}
-                    onClick={() => setIsMenuOpen(!isMenuOpen)}
-                    aria-label="Toggle menu"
+                    type="button"
+                    className={styles.logoButton}
+                    onClick={() => setExpanded((prev) => !prev)}
+                    aria-label={expanded ? 'Thu gọn thanh điều hướng' : 'Mở rộng thanh điều hướng'}
                 >
-                    {isMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                    {/* {expanded ? <ChevronLeft size={18} /> : <Factory size={20} />} */}
+                    {!expanded ? <img src="/logo-preview.png" style={{ width: 36, height: 36 }} alt="Logo" /> : <ChevronLeft size={18} />}
                 </button>
-            </div>
 
-            {/* Mobile Navigation */}
-            {isMenuOpen && (
-                <div className={styles.mobileNav}>
+                <nav className={styles.navGroup}>
                     {navItems.map((item) => {
                         const Icon = item.icon;
-                        const isActive = pathname === item.href;
+                        const isActive =
+                            pathname === item.href || pathname.startsWith(`${item.href}/`);
+
                         return (
                             <Link
                                 key={item.href}
                                 href={item.href}
-                                className={`${styles.mobileNavLink} ${isActive ? styles.active : ''}`}
-                                onClick={() => setIsMenuOpen(false)}
+                                className={`${styles.navIconButton} ${isActive ? styles.navIconActive : ''
+                                    }`}
+                                aria-label={item.label}
+                                aria-current={isActive ? 'page' : undefined}
                             >
-                                <Icon size={20} />
-                                <span>{item.label}</span>
+                                <Icon size={18} />
+                                <span className={styles.navLabel}>{item.label}</span>
                             </Link>
                         );
                     })}
+                </nav>
+
+                <div className={styles.bottomSection}>
+                    <UserInfo
+                        username={user?.username}
+                        role={user?.roles ?? ''}
+                        mode={expanded ? 'full' : 'compact'}
+                    />
                 </div>
-            )}
-        </nav>
+            </div>
+        </aside>
     );
 }

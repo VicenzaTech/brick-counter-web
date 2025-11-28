@@ -27,6 +27,16 @@
   margin-top: 0.75rem;
 }
 
+.formError {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: #b91c1c;
+  background: #fef2f2;
+  border: 1px solid #fecdd3;
+  padding: 0.5rem;
+  border-radius: 8px;
+}
+
 .primaryButton,
 .secondaryButton {
   padding: 0.45rem 0.9rem;

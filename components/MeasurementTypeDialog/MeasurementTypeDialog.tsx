@@ -8,7 +8,8 @@ import { InputField } from '@/components/InputField/InputField';
 import * as Yup from 'yup';
 import { useMemo } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555/api';
+const API_URL =
+    process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555/api';
 
 interface MeasurementTypeDialogProps {
     open: boolean;
@@ -64,7 +65,10 @@ export function MeasurementTypeDialog({
         try {
             parsedSchema = JSON.parse(values.data_schema);
         } catch {
-            setFieldError('data_schema', 'JSON Schema không hợp lệ. Vui lòng kiểm tra lại.');
+            setFieldError(
+                'data_schema',
+                'JSON Schema không hợp lệ. Vui lòng kiểm tra lại.',
+            );
             setSubmitting(false);
             return;
         }
@@ -90,24 +94,41 @@ export function MeasurementTypeDialog({
                 body: JSON.stringify(payload),
             });
             if (!res.ok) {
-                // TODO: có thể parse lỗi chi tiết từ backend
-                setFieldError('code', 'Lưu measurement type thất bại. Vui lòng thử lại.');
+                let message =
+                    'Lưu measurement type thất bại. Vui lòng thử lại.';
+                try {
+                    const errorBody = await res.json();
+                    if (errorBody?.message) {
+                        message = errorBody.message;
+                    }
+                } catch {
+                    // ignore parse error, dùng message mặc định
+                }
+                setFieldError('code', message);
                 setSubmitting(false);
                 return;
             }
             const saved = (await res.json()) as MeasurementTypeInfo;
             onSaved?.(saved);
             onClose();
+            if (typeof window !== 'undefined') {
+                window.location.reload();
+            }
         } catch (err) {
             console.error('Error saving measurement type', err);
-            setFieldError('code', 'Có lỗi xảy ra khi lưu measurement type.');
+            setFieldError(
+                'code',
+                'Có lỗi xảy ra khi lưu measurement type.',
+            );
         } finally {
             setSubmitting(false);
         }
     };
 
     const title =
-        mode === 'edit' ? 'Chỉnh sửa measurement type' : 'Thêm measurement type mới';
+        mode === 'edit'
+            ? 'Chỉnh sửa measurement type'
+            : 'Thêm measurement type mới';
 
     return (
         <Dialog open={open} title={title} onClose={onClose}>
@@ -117,7 +138,14 @@ export function MeasurementTypeDialog({
                 validationSchema={validationSchema}
                 onSubmit={handleSubmit}
             >
-                {({ isSubmitting, values, handleChange, handleBlur, errors, touched }) => (
+                {({
+                    isSubmitting,
+                    values,
+                    handleChange,
+                    handleBlur,
+                    errors,
+                    touched,
+                }) => (
                     <Form className={styles.content}>
                         <div className={styles.grid}>
                             <InputField
@@ -145,22 +173,25 @@ export function MeasurementTypeDialog({
 
                         <div className={styles.fieldGroup}>
                             <label className={styles.label}>
-                                JSON SchemaDD
+                                JSON Schema
                             </label>
                             <textarea
                                 id="data_schema"
                                 name="data_schema"
-                                className={`${styles.textarea} ${touched.data_schema && errors.data_schema
-                                    ? styles.textareaError
-                                    : ''
-                                    }`}
+                                className={`${styles.textarea} ${
+                                    touched.data_schema && errors.data_schema
+                                        ? styles.textareaError
+                                        : ''
+                                }`}
                                 value={values.data_schema}
                                 onChange={handleChange}
                                 onBlur={handleBlur}
                                 placeholder='{"type":"object","properties":{"count":{"type":"number"}}}'
                             />
                             {touched.data_schema && errors.data_schema && (
-                                <div className={styles.error}>{errors.data_schema}</div>
+                                <div className={styles.error}>
+                                    {errors.data_schema}
+                                </div>
                             )}
                         </div>
 
@@ -187,4 +218,3 @@ export function MeasurementTypeDialog({
         </Dialog>
     );
 }
-

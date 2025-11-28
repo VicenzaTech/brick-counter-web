@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { Dialog } from '@/components/Dialog/Dialog';
 import styles from './PositionDialog.module.css';
 import { Formik, Form } from 'formik';
@@ -31,6 +32,7 @@ export function PositionDialog({
     onClose,
     onSaved,
 }: PositionDialogProps) {
+    const [formError, setFormError] = useState<string | null>(null);
     const isEdit = mode === 'edit';
     const initialValues: PositionFormValues = {
         name: initialPosition?.name ?? '',
@@ -38,6 +40,7 @@ export function PositionDialog({
     };
 
     const handleSubmit = async (values: PositionFormValues, { setSubmitting }: any) => {
+        setFormError(null);
         const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555/api';
         const index = initialPosition?.index ?? maxIndex + 1;
 
@@ -65,6 +68,17 @@ export function PositionDialog({
 
             if (!res.ok) {
                 console.error('Error saving position');
+                let message =
+                    'Lưu vị trí thất bại. Vui lòng thử lại.';
+                try {
+                    const errorBody = await res.json();
+                    if (errorBody?.message) {
+                        message = errorBody.message;
+                    }
+                } catch {
+                    // ignore parse error, dùng message mặc định
+                }
+                setFormError(message);
                 return;
             }
 
@@ -79,8 +93,12 @@ export function PositionDialog({
 
             onSaved?.(saved);
             onClose();
+            if (typeof window !== 'undefined') {
+                window.location.reload();
+            }
         } catch (error) {
             console.error('Error saving position', error);
+            setFormError('Có lỗi xảy ra khi lưu vị trí.');
         } finally {
             setSubmitting(false);
         }
@@ -120,6 +138,10 @@ export function PositionDialog({
                             <span className={styles.metaLabel}>Index</span>
                             <span className={styles.metaValue}>{effectiveIndex}</span>
                         </div>
+
+                        {formError && (
+                            <div className={styles.formError}>{formError}</div>
+                        )}
 
                         <div className={styles.actions}>
                             <button
