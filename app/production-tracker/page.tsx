@@ -63,6 +63,12 @@ export default function ProductionTracker() {
   const { accessToken } = useAuthStore.getState()
 
   useEffect(() => {
+    if (selectedLine) {
+      fetchStagesForLine(selectedLine);
+    }
+  }, [selectedLine]);
+
+  useEffect(() => {
     fetchFactories();
     fetchProducts();
     loadStateFromStorage();
@@ -114,67 +120,61 @@ export default function ProductionTracker() {
   };
 
   const fetchStagesForLine = async (lineId: number) => {
-    try {
-      const { accessToken } = useAuthStore.getState();
+  try {
+    const { accessToken } = useAuthStore.getState();
 
-      const response = await fetch(
-        `http://localhost:5555/api/production-stages/by-production-line-id/${lineId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'Content-Type': 'application/json'
-          }
+    const response = await fetch(
+      `http://localhost:5555/api/production-stages/by-production-line-id/${lineId}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
         }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to fetch stages');
       }
+    );
 
-      const stages = await response.json();
-      console.log('API Response:', JSON.stringify(stages, null, 2)); // Log the exact response
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to fetch stages');
+    }
 
-      // Force update the state to ensure it triggers a re-render
-      setFactories(prevFactories => {
-        console.log('Previous factories:', JSON.parse(JSON.stringify(prevFactories))); // Log previous state
+    const stages = await response.json();
+    console.log('Fetched stages:', stages); // Debug log
 
-        const updated = prevFactories.map(factory => {
-          // Create a new factory object with updated lines
-          const updatedLines = factory.lines.map(line => {
-            if (line.id === lineId) {
-              console.log(`Updating line ${lineId} with stages:`, stages); // Debug log
-              return {
-                ...line,
-                stages: Array.isArray(stages)
-                  ? stages.map((s: any) => s.name || s.stageName || s.title || 'Unnamed Stage')
-                  : []
-              };
-            }
-            return line;
-          });
-
-          return {
-            ...factory,
-            lines: updatedLines
-          };
-        });
-
-        console.log('Updated factories:', JSON.parse(JSON.stringify(updated))); // Log new state
-        return updated;
+    // Update the stages state with the data from the database
+    stages.forEach((stage: any) => {
+      updateStageState(lineId, stage.name || stage.stageName, {
+        status: stage.status || 'stopped',
+        productId: stage.productId || null,
+        startTime: stage.startTime || null,
+        stopReason: stage.stopReason || null,
+        quantity: stage.quantity || null,
+        area: stage.area || null
       });
+    });
 
-    } catch (error) {
-      console.error('Error in fetchStagesForLine:', error);
-      showToast('Không thể tải danh sách công đoạn!', 'error');
-    }
-  };
+    // Return the stages to update the UI
+    setFactories(prevFactories => {
+      return prevFactories.map(factory => ({
+        ...factory,
+        lines: factory.lines.map(line => 
+          line.id === lineId 
+            ? { 
+                ...line, 
+                stages: stages.map((s: any) => s.name || s.stageName || 'Unnamed Stage') 
+              } 
+            : line
+        )
+      }));
+    });
 
-  useEffect(() => {
-    if (selectedLine) {
-      fetchStagesForLine(selectedLine);
-    }
-  }, [selectedLine]);
+  } catch (error) {
+    console.error('Error in fetchStagesForLine:', error);
+    showToast('Không thể tải danh sách công đoạn!', 'error');
+  }
+};
+
+  
 
   useEffect(() => {
     saveStateToStorage(stagesState);
@@ -221,8 +221,17 @@ export default function ProductionTracker() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000);
   };
 
-  const getStageState = (lineId: number, stage: string): StageState =>
-    stagesState[lineId]?.[stage] || { status: 'stopped', productId: null, startTime: null, stopReason: null, quantity: null, area: null };
+  const getStageState = (lineId: number, stage: string): StageState => {
+  return stagesState[lineId]?.[stage] || { 
+    status: 'stopped', 
+    productId: null, 
+    startTime: null, 
+    stopReason: null, 
+    quantity: null, 
+    area: null 
+  };
+}
+    
 
   const updateStageState = (lineId: number, stage: string, updates: Partial<StageState>) => {
     setStagesState(prev => {
@@ -565,6 +574,7 @@ export default function ProductionTracker() {
       <div className={styles.stagesGrid}>
         {(currentLine?.stages || []).map((stage: string, index: number) => {
           const state = getStageState(selectedLine ?? 0, stage);
+          console.log(state)
           const product = products.find(p => p.id === state.productId);
           const runningTime = getRunningTime(state.startTime);
 
