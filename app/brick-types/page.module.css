@@ -594,3 +594,219 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+
+.brickListItemWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.compareCheckbox {
+  position: absolute;
+  left: 0.5rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  cursor: pointer;
+}
+
+.compareCheckbox input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.checkmark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 18px;
+  width: 18px;
+  background-color: #fff;
+  border: 2px solid #c7d2fe;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.compareCheckbox input:checked ~ .checkmark {
+  background-color: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.checkmark:after {
+  content: "";
+  position: absolute;
+  display: none;
+}
+
+.compareCheckbox input:checked ~ .checkmark:after {
+  display: block;
+}
+
+.compareCheckbox .checkmark:after {
+  left: 5px;
+  top: 2px;
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+/* Khi hover vào item vẫn thấy checkbox nổi bật */
+.brickListItem:hover .compareCheckbox .checkmark {
+  border-color: #818cf8;
+}
+
+.compareHeaderBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #eef2ff;
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  font-size: 0.9rem;
+  color: #4f46e5;
+  font-weight: 500;
+}
+
+.brickListItemWrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.compareCheckbox {
+  position: absolute;
+  left: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+  cursor: pointer;
+}
+
+.compareCheckbox input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.checkmark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 20px;
+  width: 20px;
+  background-color: #fff;
+  border: 2px solid #c7d2fe;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.compareCheckbox input:checked ~ .checkmark {
+  background-color: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.checkmark:after {
+  content: "";
+  position: absolute;
+  display: none;
+}
+
+.compareCheckbox input:checked ~ .checkmark:after {
+  display: block;
+}
+
+.compareCheckbox .checkmark:after {
+  left: 6px;
+  top: 2px;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.compareHeaderBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(135deg, #eef2ff 0%, #e0e7ff 100%);
+  padding: 0.85rem 1.1rem;
+  border-radius: 16px;
+  margin: 0.75rem 0;
+  font-size: 0.95rem;
+  color: #4f46e5;
+  font-weight: 600;
+  border: 1.5px solid #c7d2fe;
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.15);
+}
+
+/* FIX: Checkbox không đè lên nội dung */
+.brickListItemRow {
+  display: flex;
+  align-items: center;
+  position: relative;
+  width: 100%;
+}
+
+.compareCheckboxOuter {
+  position: static !important;
+  transform: none !important;
+  margin-right: 12px;
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.compareCheckboxOuter input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.checkmark {
+  width: 20px;
+  height: 20px;
+  background: white;
+  border: 2px solid #c7d2fe;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.compareCheckboxOuter input:checked ~ .checkmark {
+  background: #4f46e5;
+  border-color: #4f46e5;
+}
+
+.checkmark:after {
+  content: "";
+  display: none;
+  width: 5px;
+  height: 10px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+
+.compareCheckboxOuter input:checked ~ .checkmark:after {
+  display: block;
+}
+
+/* Đẩy nội dung item sang phải để không bị đè */
+.brickListItem {
+  flex: 1;
+  padding-left: 8px !important; /* quan trọng */
+  position: static !important;
+}
+
+/* Khi hover vẫn thấy đẹp */
+.brickListItemRow:hover .brickListItem {
+  background-color: #f9fafb;
+  border-color: #e5e7eb;
+}
