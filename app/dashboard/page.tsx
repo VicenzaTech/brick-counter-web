@@ -18,6 +18,8 @@ import {
 } from 'chart.js';
 import dayjs, { Dayjs } from 'dayjs';
 import { ReloadOutlined, FilterOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
+// Import CSS Module
+import styles from './Dashboard.module.css';
 
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
@@ -36,7 +38,7 @@ ChartJS.register(
   ArcElement
 );
 
-// // =================== ĐỊNH NGHĨA KIỂU DỮ LIỆU MỚI ===================
+// =================== ĐỊNH NGHĨA KIỂU DỮ LIỆU MỚI ===================
 interface DetailedProductionRecord {
   key: string;
   date: string; // YYYY-MM-DD
@@ -355,7 +357,7 @@ export default function Dashboard() {
     plugins: {
       legend: {
         position: 'top' as const,
-        labels: { color: '#e2e8f0', font: { size: 12 } },
+        labels: { color: '#1e293b', font: { size: 12 } },
       },
       tooltip: {
         titleFont: { size: 14 },
@@ -367,13 +369,13 @@ export default function Dashboard() {
     },
     scales: {
       x: {
-        ticks: { color: '#94a3b8', font: { size: 11 } },
-        grid: { color: '#334155', drawBorder: false },
+        ticks: { color: '#64748b', font: { size: 11 } },
+        grid: { color: '#e2e8f0', drawBorder: false },
       },
       y: {
-        ticks: { color: '#94a3b8' },
-        grid: { color: '#334155', drawBorder: false },
-        title: { display: true, color: '#e2e8f0' }
+        ticks: { color: '#64748b' },
+        grid: { color: '#e2e8f0', drawBorder: false },
+        title: { display: true, color: '#1e293b' }
       }
     }
   };
@@ -409,7 +411,7 @@ export default function Dashboard() {
     plugins: {
       legend: {
         position: 'bottom' as const,
-        labels: { color: '#e2e8f0', padding: 20 },
+        labels: { color: '#1e293b', padding: 20 },
       },
       tooltip: {
         callbacks: {
@@ -485,188 +487,116 @@ export default function Dashboard() {
 
   // --- Render giao diện ---
   return (
-    <div className="app-wrapper">
-
-      {/* Main Content */}
-      <main className="main-content">
+    // Sử dụng styles từ CSS Module
+    <div className={styles.dashboardWrapper}>
+      <main className={styles.mainContent}>
         {/* Header */}
-        <header className="dashboard-header">
+        <header className={styles.dashboardHeader}>
           <div>
-            <p className="breadcrumb">Trang chủ / Nhà máy {activeFactory === '1' ? '1' : '2'}</p>
+            <p className={styles.breadcrumb}>Trang chủ / Nhà máy {activeFactory === '1' ? '1' : '2'}</p>
             <h1>Dashboard Quản Lý Sản Xuất</h1>
           </div>
-          <div className="header-actions">
-            <select value={activeFactory} onChange={(e) => setActiveFactory(e.target.value as '1' | '2')} className="form-select">
+          <div className={styles.headerActions}>
+            <select value={activeFactory} onChange={(e) => setActiveFactory(e.target.value as '1' | '2')} className={styles.formSelect}>
               <option value="1">Nhà máy 1</option>
               <option value="2">Nhà máy 2</option>
             </select>
-            <button className="btn btn-secondary">
-              <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-                <path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z" />
-                <path fillRule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.9 5h1.016A6.002 6.002 0 0 1 3.416 9.818a.5.5 0 1 1 .771-.636A5.002 5.002 0 0 0 3.1 9z" />
-              </svg>
-              Cập nhật
-            </button>
+           
           </div>
         </header>
 
         {/* Filters */}
-        <div className="filters-section">
-          <select value={selectedLine} onChange={(e) => setSelectedLine(e.target.value)} className="form-select">
+        <div className={styles.filtersSection}>
+          <select value={selectedLine} onChange={(e) => setSelectedLine(e.target.value)} className={styles.formSelect}>
             <option value="all">Tất cả dây chuyền</option>
             {LINES.map(l => <option key={l} value={l}>{l}</option>)}
           </select>
           <input type="date" onChange={(e) => {
             const date = dayjs(e.target.value);
             setDateRange(prev => prev ? [date, prev[1]] : [date, date]);
-          }} className="form-input" />
+          }} className={styles.formInput} />
           <input type="date" onChange={(e) => {
             const date = dayjs(e.target.value);
             setDateRange(prev => prev ? [prev[0], date] : [date, date]);
-          }} className="form-input" />
-          <button className="btn btn-primary" onClick={() => { setSelectedLine('all'); setDateRange(null); }}>
+          }} className={styles.formInput} />
+          <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => { setSelectedLine('all'); setDateRange(null); }}>
             Xóa lọc
           </button>
         </div>
 
         {/* KPI Cards */}
-        <div className="kpi-grid">
-          <div className="kpi-card">
-            <div className="kpi-header">
+        <div className={styles.kpiGrid}>
+          <div className={styles.kpiCard}>
+            <div className={styles.kpiHeader}>
               <svg width="24" height="24" fill="#60a5fa" viewBox="0 0 16 16"><path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" /></svg>
               <span>Tổng sản lượng (m²)</span>
             </div>
-            <p className="kpi-value">{kpiData.totalOriginalOutput.toLocaleString('vi-VN')}</p>
+            <p className={styles.kpiValue}>{kpiData.totalOriginalOutput.toLocaleString('vi-VN')}</p>
           </div>
-          <div className="kpi-card">
-            <div className="kpi-header">
+          <div className={styles.kpiCard}>
+            <div className={styles.kpiHeader}>
               <svg width="24" height="24" fill="#34d399" viewBox="0 0 16 16"><path d="M1 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3zm5-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5-5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2z" /></svg>
               <span>Hiệu suất TB toàn bộ</span>
             </div>
-            <p className="kpi-value">{kpiData.overallEfficiency.toFixed(2)}%</p>
+            <p className={styles.kpiValue}>{kpiData.overallEfficiency.toFixed(2)}%</p>
           </div>
-          <div className="kpi-card">
-            <div className="kpi-header">
+          <div className={styles.kpiCard}>
+            <div className={styles.kpiHeader}>
               <svg width="24" height="24" fill="#f87171" viewBox="0 0 16 16"><path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.146.146 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.163.163 0 0 1-.054.06.116.116 0 0 1-.066.017H1.146a.115.115 0 0 1-.066-.017.163.163 0 0 1-.054-.06.176.176 0 0 1 .002-.183L7.884 2.073a.147.147 0 0 1 .054-.057zm1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566z" /><path d="M7.002 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 5.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995z" /></svg>
               <span>Tỷ lệ hao phí TB</span>
             </div>
-            <p className="kpi-value">{kpiData.overallWasteRate.toFixed(2)}%</p>
+            <p className={styles.kpiValue}>{kpiData.overallWasteRate.toFixed(2)}%</p>
           </div>
-          <div className="kpi-card">
-            <div className="kpi-header">
+          <div className={styles.kpiCard}>
+            <div className={styles.kpiHeader}>
               <svg width="24" height="24" fill="#fbbf24" viewBox="0 0 16 16"><path d="M1 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3zm5-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5-5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2z" /></svg>
               <span>Dây chuyền hoạt động</span>
             </div>
-            <p className="kpi-value">{kpiData.lines}</p>
+            <p className={styles.kpiValue}>{kpiData.lines}</p>
           </div>
         </div>
 
         {/* Biểu đồ */}
-        <div className="charts-section">
-          <div className="card full-width">
-            <h2 className="card-title">So Sánh Thực Tế vs. Kế Hoạch</h2>
-            <div className="chart-container" style={{ height: '420px' }}>
+        <div className={styles.chartsSection}>
+          <div className={`${styles.card} ${styles.fullWidth}`}>
+            <h2 className={styles.cardTitle}>So Sánh Thực Tế vs. Kế Hoạch</h2>
+            <div className={styles.chartContainer} style={{ height: '420px' }}>
               <Bar data={planVsActualData} options={planVsActualOptions} />
             </div>
           </div>
-          <div className="card half-width">
-            <h2 className="card-title">Phân Bổ Chất Lượng Cuối Cùng</h2>
-            <div className="chart-container" style={{ height: '360px' }}>
+          <div className={`${styles.card} ${styles.halfWidth}`}>
+            <h2 className={styles.cardTitle}>Phân Bổ Chất Lượng Cuối Cùng</h2>
+            <div className={styles.chartContainer} style={{ height: '360px' }}>
               <Doughnut data={qualityPieData} options={pieOptions} />
             </div>
           </div>
-          <div className="card half-width">
-            <h2 className="card-title">Sản Lượng Theo Dây Chuyền</h2>
-            <div className="chart-container" style={{ height: '360px' }}>
+          <div className={`${styles.card} ${styles.halfWidth}`}>
+            <h2 className={styles.cardTitle}>Sản Lượng Theo Dây Chuyền</h2>
+            <div className={styles.chartContainer} style={{ height: '360px' }}>
               <Bar data={outputByLineData} options={outputByLineOptions} />
             </div>
           </div>
         </div>
 
-        <div className="card full-width">
-          <h2 className="card-title">Xu Hướng Tỷ Lệ Hao Phí Theo Công Đoạn</h2>
-          <div className="chart-container" style={{ height: '350px' }}>
+        <div className={`${styles.card} ${styles.fullWidth}`}>
+          <h2 className={styles.cardTitle}>Xu Hướng Tỷ Lệ Hao Phí Theo Công Đoạn</h2>
+          <div className={styles.chartContainer} style={{ height: '350px' }}>
             <Line data={wasteByStageData} options={wasteByStageOptions} />
           </div>
         </div>
 
         {/* Bảng chi tiết sản xuất */}
-        <Card title="Chi Tiết Sản Lượng Theo Công Đoạn" styles={{ body: { padding: 0 } }} style={{ background: '#ffffff', border: '1px solid #ffffff', borderRadius: 12 }}>
+        <Card title="Chi Tiết Sản Lượng Theo Công Đoạn" styles={{ body: { padding: 0 } }} style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: 12 }}>
           <Table
             columns={detailedTableColumns}
             dataSource={detailedData}
             pagination={{ pageSize: 10 }}
             scroll={{ x: 1200 }}
             rowKey="key"
-            style={{ background: 'transparent' }}
           />
         </Card>
 
       </main>
-
-      {/* CSS Styles */}
-      <style jsx>{`
-        /* === CSS Variables === */
-        :root {
-          --bg-primary: #0f172a;
-          --bg-secondary: #1e293b;
-          --bg-tertiary: #334155;
-          --text-primary: #f1f5f9;
-          --text-secondary: #e2e8f0;
-          --text-muted: #94a3b8;
-          --border-color: #334155;
-          --color-blue: #60a5fa;
-          --color-green: #34d399;
-          --color-yellow: #fbbf24;
-          --color-red: #f87171;
-        }
-
-        /* === Global Styles === */
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'system-ui', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: var(--bg-primary); color: var(--text-secondary); }
-
-        /* === Layout === */
-        .app-wrapper { display: flex; min-height: 100vh; }
-        .sidebar { width: 250px; background-color: #0f1629; border-right: 1px solid var(--border-color); display: flex; flex-direction: column; padding: 24px 0; }
-        .main-content { flex: 1; padding: 0 32px; overflow-x: auto; }
-        .dashboard-header { padding: 20px 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); }
-        .breadcrumb { color: var(--text-muted); font-size: 14px; }
-        .dashboard-header h1 { color: var(--text-primary); font-size: 28px; margin-top: 4px; }
-        .header-actions { display: flex; gap: 12px; }
-        .filters-section { padding: 24px 0; display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
-        .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; padding: 0 0 24px 0; }
-        .charts-section { display: flex; flex-wrap: wrap; gap: 24px; padding-bottom: 32px; }
-        .full-width { width: 100%; }
-        .half-width { width: calc(50% - 12px); }
-        @media (max-width: 1024px) { .half-width { width: 100%; } }
-
-        /* === Components === */
-        .card { background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; }
-        .card-title { color: var(--text-primary); font-size: 18px; margin-bottom: 20px; }
-        .kpi-card { background-color: var(--bg-secondary); border: 1px solid var(--border-color); border-radius: 12px; padding: 24px; }
-        .kpi-header { display: flex; align-items: center; gap: 8px; color: var(--text-muted); font-size: 14px; margin-bottom: 12px; }
-        .kpi-value { font-size: 32px; font-weight: bold; color: var(--text-primary); }
-        .form-select, .form-input { background-color: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-secondary); padding: 8px 12px; border-radius: 6px; font-size: 14px; }
-        .form-select:focus, .form-input:focus { outline: none; border-color: var(--color-blue); }
-        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 6px; border: 1px solid transparent; font-size: 14px; cursor: pointer; transition: all 0.2s ease-in-out; }
-        .btn-primary { background-color: var(--bg-tertiary); color: var(--text-secondary); }
-        .btn-primary:hover { background-color: var(--border-color); }
-        .btn-secondary { background-color: var(--bg-tertiary); color: var(--text-secondary); }
-        .btn-secondary:hover { background-color: var(--border-color); }
-        .chart-container { position: relative; }
-
-        /* === Sidebar Styles === */
-        .sidebar-header { padding: 0 24px; margin-bottom: 32px; text-align: center; }
-        .logo { width: 40px; height: 40px; border-radius: 8px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; color: #fff; font-size: 20px; font-weight: bold; }
-        .company-name { color: var(--text-primary); font-weight: 600; }
-        .user-role { color: var(--text-muted); font-size: 12px; }
-        .sidebar-nav { flex: 1; }
-        .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 24px; margin: 4px 12px; border-radius: 8px; color: var(--text-muted); text-decoration: none; transition: all 0.2s ease-in-out; }
-        .nav-item:hover { background-color: rgba(255, 255, 255, 0.05); color: var(--text-secondary); }
-        .nav-item.active { background-color: var(--color-blue); color: #fff; }
-        .nav-item.logout { color: var(--text-muted); border-top: 1px solid var(--border-color); margin-top: auto; }
-        .nav-icon { width: 20px; height: 20px; flex-shrink: 0; }
-      `}</style>
     </div>
   );
 }

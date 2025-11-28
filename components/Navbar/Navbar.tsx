@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Factory, LayoutDashboard, Database, Activity, Menu, X, TrendingUp, Box } from 'lucide-react';
+import { Factory, LayoutDashboard, Database, Activity, Menu, X, TrendingUp, Notebook } from 'lucide-react';
 import { useState } from 'react';
 import styles from './Navbar.module.css';
 import { authStateSelector, useAuthStore } from '@/store/auth.store';
@@ -11,8 +11,10 @@ import UserInfo from '../UserInfo/UserInfo';
 
 const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/production-tracker', label: 'Cấu hình dây chuyền', icon: TrendingUp },
     { href: '/device-dashboard', label: 'Phân tích thiết bị', icon: Activity },
     { href: '/brick-types', label: 'Quản lý dòng gạch', icon: Database },
+    { href: '/activty-logs', label: 'Nhật ký hoạt động', icon:  Notebook },
 ];
 
 export default function Navbar() {
