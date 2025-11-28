@@ -73,6 +73,7 @@ interface LineSettingsSectionProps {
     onAddPosition?: () => void;
     onEditPosition?: (position: PositionInfo) => void;
     onDeletePosition?: (position: PositionInfo) => void;
+    onRefreshLine?: () => void;
 }
 
 function sortPositionByIndex(positions: PositionInfo[]): PositionInfo[] {
@@ -101,6 +102,7 @@ export default function LineSettingsSection({
     onAddPosition,
     onEditPosition,
     onDeletePosition,
+    onRefreshLine,
 }: LineSettingsSectionProps) {
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555/api';
@@ -278,6 +280,7 @@ export default function LineSettingsSection({
         if (!exists) devices.push(saved);
         else devices[devices.findIndex((d) => d.id === saved.id)] = saved;
         setDeviceDialog(null);
+        onRefreshLine?.();
     };
 
 
@@ -296,6 +299,7 @@ export default function LineSettingsSection({
     const handlePositionSaved = (saved: PositionInfo) => {
         setPositions((prev) => sortPositionByIndex([...prev.filter((p) => p.id !== saved.id), saved]));
         setPositionDialog(null);
+        onRefreshLine?.();
     };
 
 
@@ -335,6 +339,8 @@ export default function LineSettingsSection({
                                 console.error('Update production line failed');
                                 return;
                             }
+
+                            onRefreshLine?.();
 
                         } catch (err) {
                             resetForm();
