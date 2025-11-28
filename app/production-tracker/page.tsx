@@ -122,7 +122,7 @@ export default function ProductionTracker() {
   const fetchStagesForLine = async (lineId: number) => {
   try {
     const { accessToken } = useAuthStore.getState();
-
+    console.log(accessToken)
     const response = await fetch(
       `http://localhost:5555/api/production-stages/by-production-line-id/${lineId}`,
       {

@@ -26,19 +26,19 @@ const navItems = [
         label: 'Tổng quan',
     },
     {
-        href: '/activity-logs',
-        icon: Notebook,
-        label: 'Nhật ký',
+        href: '/production-tracker',
+        icon: BrickWall,
+        label: 'Theo dõi sản xuất',
     },
     {
         href: '/brick-types',
         icon: Database,
-        label: 'Dạng gạch',
+        label: 'Quản lý dòng gạch',
     },
-    {
-        href: '/brick-analytics',
-        icon: BrickWall,
-        label: 'Phân tích gạch',
+     {
+        href: '/activity-logs',
+        icon: Notebook,
+        label: 'Nhật ký',
     },
     {
         href: '/device-dashboard',
