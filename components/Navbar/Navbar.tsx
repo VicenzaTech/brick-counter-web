@@ -82,6 +82,10 @@ export default function Navbar() {
                 >
                     {/* {expanded ? <ChevronLeft size={18} /> : <Factory size={20} />} */}
                     {!expanded ? <img src="/logo-preview.png" style={{ width: 36, height: 36 }} alt="Logo" /> : <ChevronLeft size={18} />}
+                    {/* Tooltip on hover when collapsed */}
+                    {!expanded && (
+                        <span className={styles.logoTooltip}>MỞ RỘNG</span>
+                    )}
                 </button>
 
                 <nav className={styles.navGroup}>

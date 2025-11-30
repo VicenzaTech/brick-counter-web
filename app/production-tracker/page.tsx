@@ -35,7 +35,7 @@ interface Toast {
 
 // Cập nhật interface StageState để lưu kết quả
 interface StageState {
-  status: 'stopped' | 'running' | 'waiting_log';
+  status: 'pending' | 'running' | 'waiting_log';
   productId: number | null;
   startTime: string | null;
   stopReason: string | null;
@@ -44,7 +44,7 @@ interface StageState {
   quantity: number | null;
   area: number | null;
   // Thêm thuộc tính để lưu trạng thái trước đó
-  previousStatus?: 'stopped' | 'running' | 'waiting_log';
+  previousStatus?: 'pending' | 'running' | 'waiting_log';
 }
 
 export default function ProductionTracker() {
@@ -61,6 +61,7 @@ export default function ProductionTracker() {
   const [showLogConfirm, setShowLogConfirm] = useState<{ show: boolean, lineId: number | null, stage: string }>({ show: false, lineId: null, stage: '' });
   const stopActionRef = useRef<{ lineId: number | null, stage: string, isEmergency: boolean }>({ lineId: null, stage: '', isEmergency: false });
   const { accessToken } = useAuthStore.getState()
+  const [stagesData, setStagesData] = useState<Record<number, Array<{ id: number, name: string }>>>({});
 
   useEffect(() => {
     if (selectedLine) {
@@ -120,61 +121,68 @@ export default function ProductionTracker() {
   };
 
   const fetchStagesForLine = async (lineId: number) => {
-  try {
-    const { accessToken } = useAuthStore.getState();
-    console.log(accessToken)
-    const response = await fetch(
-      `http://localhost:5555/api/production-stages/by-production-line-id/${lineId}`,
-      {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json'
+    try {
+      const { accessToken } = useAuthStore.getState();
+      console.log(accessToken)
+      const response = await fetch(
+        `http://localhost:5555/api/production-stages/by-production-line-id/${lineId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
         }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to fetch stages');
       }
-    );
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || 'Failed to fetch stages');
-    }
-
-    const stages = await response.json();
-    console.log('Fetched stages:', stages); // Debug log
-
-    // Update the stages state with the data from the database
-    stages.forEach((stage: any) => {
-      updateStageState(lineId, stage.name || stage.stageName, {
-        status: stage.status || 'stopped',
-        productId: stage.productId || null,
-        startTime: stage.startTime || null,
-        stopReason: stage.stopReason || null,
-        quantity: stage.quantity || null,
-        area: stage.area || null
-      });
-    });
-
-    // Return the stages to update the UI
-    setFactories(prevFactories => {
-      return prevFactories.map(factory => ({
-        ...factory,
-        lines: factory.lines.map(line => 
-          line.id === lineId 
-            ? { 
-                ...line, 
-                stages: stages.map((s: any) => s.name || s.stageName || 'Unnamed Stage') 
-              } 
-            : line
-        )
+      const stages = await response.json();
+      console.log('Fetched stages:', stages); // Debug log
+      // Store the stages data with their IDs
+      setStagesData(prev => ({
+        ...prev,
+        [lineId]: stages.map((stage: any) => ({
+          id: stage.id,
+          name: stage.name || stage.stageName
+        }))
       }));
-    });
+      // Update the stages state with the data from the database
+      stages.forEach((stage: any) => {
+        updateStageState(lineId, stage.name || stage.stageName, {
+          status: stage.status || 'pending',
+          productId: stage.productId || null,
+          startTime: stage.startTime || null,
+          stopReason: stage.stopReason || null,
+          quantity: stage.quantity || null,
+          area: stage.area || null
+        });
+      });
 
-  } catch (error) {
-    console.error('Error in fetchStagesForLine:', error);
-    showToast('Không thể tải danh sách công đoạn!', 'error');
-  }
-};
+      // Return the stages to update the UI
+      setFactories(prevFactories => {
+        return prevFactories.map(factory => ({
+          ...factory,
+          lines: factory.lines.map(line =>
+            line.id === lineId
+              ? {
+                ...line,
+                stages: stages.map((s: any) => s.name || s.stageName || 'Unnamed Stage')
+              }
+              : line
+          )
+        }));
+      });
 
-  
+    } catch (error) {
+      console.error('Error in fetchStagesForLine:', error);
+      showToast('Không thể tải danh sách công đoạn!', 'error');
+    }
+  };
+
+
 
   useEffect(() => {
     saveStateToStorage(stagesState);
@@ -222,16 +230,16 @@ export default function ProductionTracker() {
   };
 
   const getStageState = (lineId: number, stage: string): StageState => {
-  return stagesState[lineId]?.[stage] || { 
-    status: 'stopped', 
-    productId: null, 
-    startTime: null, 
-    stopReason: null, 
-    quantity: null, 
-    area: null 
-  };
-}
-    
+    return stagesState[lineId]?.[stage] || {
+      status: 'pending',
+      productId: null,
+      startTime: null,
+      stopReason: null,
+      quantity: null,
+      area: null
+    };
+  }
+
 
   const updateStageState = (lineId: number, stage: string, updates: Partial<StageState>) => {
     setStagesState(prev => {
@@ -240,8 +248,8 @@ export default function ProductionTracker() {
         ...prev,
         [lineId]: {
           ...prev[lineId],
-          [stage]: { 
-            ...currentState, 
+          [stage]: {
+            ...currentState,
             ...updates,
             // Lưu trạng thái trước đó
             previousStatus: currentState.status
@@ -259,22 +267,23 @@ export default function ProductionTracker() {
     });
   };
 
-  const startProduction = async (lineId: number, stage: string) => {
-    const state = getStageState(lineId, stage);
+  const startProduction = async (lineId: number, stageName: string) => {
+    const state = getStageState(lineId, stageName);
     if (!state.productId) {
       showToast('Vui lòng chọn dòng gạch trước!', 'error');
       return;
     }
 
     try {
-      // Call API to update production stage status
-      console.log(JSON.stringify({
-        productionLineId: lineId,
-        stageName: stage,
-        status: 'running',
-        startTime: new Date().toISOString(),
-        productId: state.productId
-      }))
+      // Get the stage ID from the stagesData state
+      const stage = stagesData[lineId]?.find(s => s.name === stageName);
+      if (!stage) {
+        throw new Error('Không tìm thấy thông tin công đoạn');
+      }
+
+      const startTime = new Date().toISOString();
+
+      // Your existing API call to update status
       const response = await fetch('http://localhost:5555/api/production-stages/update-status', {
         method: 'POST',
         headers: {
@@ -282,9 +291,9 @@ export default function ProductionTracker() {
         },
         body: JSON.stringify({
           productionLineId: lineId,
-          stageName: stage,
+          stageName: stageName,
           status: 'running',
-          startTime: new Date().toISOString(),
+          startTime: startTime,
           productId: state.productId
         }),
       });
@@ -293,19 +302,37 @@ export default function ProductionTracker() {
         throw new Error('Failed to update production stage');
       }
 
-      // Update local state only after successful API call
-      updateStageState(lineId, stage, {
+      // Create history record with the actual stage ID
+      const historyResponse = await fetch('http://localhost:5555/api/production-stage-history', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          stageId: stage.id, // Use the actual stage ID
+          productId: state.productId,
+          startTime: startTime,
+          isEmergency: false,
+        }),
+      });
+
+      if (!historyResponse.ok) {
+        throw new Error('Failed to create production stage history');
+      }
+
+      // Update local state
+      updateStageState(lineId, stageName, {
         status: 'running',
-        startTime: new Date().toISOString(),
+        startTime: startTime,
         stopReason: null,
         quantity: null,
         area: null
       });
 
-      showToast(`Đã khởi động công đoạn ${stage}`, 'success');
+      showToast(`Đã khởi động công đoạn ${stageName}`, 'success');
     } catch (error) {
-      console.error('Error updating production stage:', error);
-      showToast('Có lỗi xảy ra khi cập nhật trạng thái sản xuất', 'error');
+      console.error('Error in startProduction:', error);
+      showToast('Có lỗi xảy ra khi khởi động công đoạn sản xuất', 'error');
     }
   };
 
@@ -314,16 +341,48 @@ export default function ProductionTracker() {
     setShowConfirmDialog({
       show: true,
       message: `Bạn có chắc chắn muốn ${isEmergency ? 'DỪNG KHẨN CẤP' : 'DỪNG'} công đoạn ${stage}?`,
-      onConfirm: () => {
-        const reason = isEmergency ? 'machine_error' : 'change_product';
-        updateStageState(lineId, stage, { 
-          status: 'waiting_log', 
-          stopReason: reason, 
-          isEmergency,
-          startTime: getStageState(lineId, stage).startTime // Keep the start time for production logging
-        });
-        showToast(`Công đoạn ${stage} đã dừng. Vui lòng chốt sản lượng.`, 'success');
-        setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
+      onConfirm: async () => {
+        try {
+          const reason = isEmergency ? 'machine_error' : 'change_product';
+          const currentState = getStageState(lineId, stage);
+
+          // Call API to update production stage status to 'waiting_log'
+          const response = await fetch('http://localhost:5555/api/production-stages/update-status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${accessToken}`
+            },
+            body: JSON.stringify({
+              productionLineId: lineId,
+              stageName: stage,
+              status: 'waiting_log',
+              stopReason: reason,
+              isEmergency: isEmergency,
+              startTime: currentState.startTime,
+              productId: currentState.productId
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Failed to update production stage status');
+          }
+
+          // Update local state only after successful API call
+          updateStageState(lineId, stage, {
+            status: 'waiting_log',
+            stopReason: reason,
+            isEmergency,
+            startTime: currentState.startTime // Keep the start time for production logging
+          });
+
+          showToast(`Công đoạn ${stage} đã dừng. Vui lòng chốt sản lượng.`, 'success');
+        } catch (error) {
+          console.error('Error stopping production:', error);
+          showToast('Có lỗi xảy ra khi dừng công đoạn sản xuất', 'error');
+        } finally {
+          setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
+        }
       },
       onCancel: () => {
         setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
@@ -339,16 +398,47 @@ export default function ProductionTracker() {
     setShowResumeConfirm({ show: true, lineId, stage });
   };
 
-  const resumeProduction = (lineId: number, stage: string) => {
-    const state = getStageState(lineId, stage);
-    updateStageState(lineId, stage, { 
-      status: 'running',
-      stopReason: null,
-      isEmergency: false,
-      startTime: state.startTime || new Date().toISOString()
-    });
-    showToast(`Đã tiếp tục công đoạn ${stage}`, 'success');
-    setShowResumeConfirm({ show: false, lineId: null, stage: '' });
+  const resumeProduction = async (lineId: number, stage: string) => {
+    try {
+      const state = getStageState(lineId, stage);
+
+      // Call API to update production stage status to 'running'
+      const response = await fetch('http://localhost:5555/api/production-stages/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          productionLineId: lineId,
+          stageName: stage,
+          status: 'running',
+          stopReason: null,
+          isEmergency: false,
+          startTime: state.startTime || new Date().toISOString(),
+          productId: state.productId
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update production stage status');
+      }
+
+      // Update local state only after successful API call
+      updateStageState(lineId, stage, {
+        status: 'running',
+        stopReason: null,
+        isEmergency: false,
+        startTime: state.startTime || new Date().toISOString()
+      });
+
+      showToast(`Đã tiếp tục công đoạn ${stage}`, 'success');
+    } catch (error) {
+      console.error('Error resuming production:', error);
+      showToast('Có lỗi xảy ra khi tiếp tục công đoạn sản xuất', 'error');
+    } finally {
+      setShowResumeConfirm({ show: false, lineId: null, stage: '' });
+    }
   };
 
   const cancelResumeProduction = () => {
@@ -359,14 +449,64 @@ export default function ProductionTracker() {
     const state = getStageState(lineId, stage);
     try {
       setProcessingStage(stage);
-      await new Promise(r => setTimeout(r, 1500));
+      // Giả lập số lượng và diện tích
       const qty = Math.floor(Math.random() * 500) + 800;
-      // Hệ số quy đổi: 1m² = 11 viên (ví dụ cho gạch 30x30)
       const area = parseFloat((qty / 11).toFixed(2));
 
-      // Update the state with production data
+      // Gọi API cập nhật trạng thái về 'pending' (chốt sản lượng)
+      const response = await fetch('http://localhost:5555/api/production-stages/update-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({
+          productionLineId: lineId,
+          stageName: stage,
+          status: 'pending',
+          quantity: qty,
+          area: area,
+          productId: state.productId
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to update production stage status');
+      }
+
+      // Tìm stageId từ stagesData
+      const stageObj = stagesData[lineId]?.find(s => s.name === stage);
+      const stageId = stageObj?.id;
+
+      // Gọi API cập nhật production stage history gần nhất (cập nhật endTime, quantity, area, stopReason, notes, created_by_username)
+      if (stageId && state.productId) {
+        // endTime là thời điểm hiện tại
+        const endTime = new Date().toISOString();
+        // stopReason: chuyển đổi dòng gạch hoặc dừng sự cố
+        let stopReason = state.stopReason || 'change_product';
+        if (state.isEmergency) stopReason = 'machine_error';
+        await fetch(`http://localhost:5555/api/production-stage-history/update-latest`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({
+            stageId: stageId,
+            productId: state.productId,
+            endTime: endTime,
+            quantity: qty,
+            area: area,
+            stopReason: stopReason,
+            notes: 'Fake note',
+            created_by_username: 'fake_user'
+          })
+        });
+      }
+
+      // Update local state only after successful API call
       updateStageState(lineId, stage, {
-        status: 'stopped',
+        status: 'pending',
         quantity: qty,
         area: area,
         startTime: null,
@@ -421,104 +561,104 @@ export default function ProductionTracker() {
     <div className={styles.container}>
       {/* Confirmation Dialog */}
       {showConfirmDialog.show && (
-      <div className={styles.modalOverlay}>
-        <div className={styles.modal}>
-          <div className={styles.modalHeader}>
-            <AlertTriangle size={32} className={styles.modalWarningIcon} />
-            <h2 className={styles.modalTitle}>
-              {stopActionRef.current.isEmergency ? 'DỪNG KHẨN CẤP' : 'DỪNG SẢN XUẤT'}
-            </h2>
-          </div>
-          <p className={styles.modalMessage}>
-            {showConfirmDialog.message}
-          </p>
-          <div className={styles.modalActions}>
-            <button
-              className={styles.modalBtnCancel}
-              onClick={() => {
-                setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
-                stopActionRef.current = { lineId: null, stage: '', isEmergency: false };
-              }}
-            >
-              Hủy bỏ
-            </button>
-            <button
-              className={stopActionRef.current.isEmergency ? styles.modalBtnEmergency : styles.modalBtnStop}
-              onClick={() => {
-                showConfirmDialog.onConfirm?.();
-                stopActionRef.current = { lineId: null, stage: '', isEmergency: false };
-              }}
-            >
-              {stopActionRef.current.isEmergency ? 'DỪNG GẤP' : 'Dừng'}
-            </button>
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            <div className={styles.modalHeader}>
+              <AlertTriangle size={32} className={styles.modalWarningIcon} />
+              <h2 className={styles.modalTitle}>
+                {stopActionRef.current.isEmergency ? 'DỪNG KHẨN CẤP' : 'DỪNG SẢN XUẤT'}
+              </h2>
+            </div>
+            <p className={styles.modalMessage}>
+              {showConfirmDialog.message}
+            </p>
+            <div className={styles.modalActions}>
+              <button
+                className={styles.modalBtnCancel}
+                onClick={() => {
+                  setShowConfirmDialog({ show: false, message: '', onConfirm: null, onCancel: null });
+                  stopActionRef.current = { lineId: null, stage: '', isEmergency: false };
+                }}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                className={stopActionRef.current.isEmergency ? styles.modalBtnEmergency : styles.modalBtnStop}
+                onClick={() => {
+                  showConfirmDialog.onConfirm?.();
+                  stopActionRef.current = { lineId: null, stage: '', isEmergency: false };
+                }}
+              >
+                {stopActionRef.current.isEmergency ? 'DỪNG GẤP' : 'Dừng'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
 
       {/* Resume Production Confirmation Dialog */}
       {showLogConfirm.show && (
-      <div className={styles.modalOverlay}>
-        <div className={styles.modal}>
-          <div className={styles.modalHeader}>
-            <CheckCircle size={32} className={styles.modalSuccessIcon} />
-            <h2 className={styles.modalTitle}>Chốt sản lượng</h2>
-          </div>
-          <p className={styles.modalMessage}>
-            Bạn có chắc chắn muốn chốt sản lượng cho công đoạn <strong>{showLogConfirm.stage}</strong>?
-          </p>
-          <div className={styles.modalActions}>
-            <button
-              className={styles.modalBtnCancel}
-              onClick={() => setShowLogConfirm({ show: false, lineId: null, stage: '' })}
-            >
-              Hủy
-            </button>
-            <button
-              className={styles.modalBtnConfirm}
-              disabled={processingStage === showLogConfirm.stage}
-              onClick={() => {
-                logProduction(showLogConfirm.lineId!, showLogConfirm.stage);
-                setShowLogConfirm({ show: false, lineId: null, stage: '' });
-              }}
-            >
-              {processingStage === showLogConfirm.stage ? 'Đang chốt...' : 'Xác nhận chốt'}
-            </button>
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            <div className={styles.modalHeader}>
+              <CheckCircle size={32} className={styles.modalSuccessIcon} />
+              <h2 className={styles.modalTitle}>Chốt sản lượng</h2>
+            </div>
+            <p className={styles.modalMessage}>
+              Bạn có chắc chắn muốn chốt sản lượng cho công đoạn <strong>{showLogConfirm.stage}</strong>?
+            </p>
+            <div className={styles.modalActions}>
+              <button
+                className={styles.modalBtnCancel}
+                onClick={() => setShowLogConfirm({ show: false, lineId: null, stage: '' })}
+              >
+                Hủy
+              </button>
+              <button
+                className={styles.modalBtnConfirm}
+                disabled={processingStage === showLogConfirm.stage}
+                onClick={() => {
+                  logProduction(showLogConfirm.lineId!, showLogConfirm.stage);
+                  setShowLogConfirm({ show: false, lineId: null, stage: '' });
+                }}
+              >
+                {processingStage === showLogConfirm.stage ? 'Đang chốt...' : 'Xác nhận chốt'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
 
       {/* Log Production Confirmation Dialog */}
       {showResumeConfirm.show && (
-      <div className={styles.modalOverlay}>
-        <div className={styles.modal}>
-          <div className={styles.modalHeader}>
-            <RotateCcw size={32} className={styles.modalInfoIcon} />
-            <h2 className={styles.modalTitle}>Tiếp tục sản xuất</h2>
-          </div>
-          <p className={styles.modalMessage}>
-            Bạn muốn quay lại sản xuất công đoạn <strong>{showResumeConfirm.stage}</strong> mà không chốt sản lượng?
-          </p>
-          <div className={styles.modalActions}>
-            <button
-              className={styles.modalBtnCancel}
-              onClick={() => setShowResumeConfirm({ show: false, lineId: null, stage: '' })}
-            >
-              Hủy
-            </button>
-            <button
-              className={styles.modalBtnResume}
-              onClick={() => {
-                resumeProduction(showResumeConfirm.lineId!, showResumeConfirm.stage);
-              }}
-            >
-              Quay lại sản xuất
-            </button>
+        <div className={styles.modalOverlay}>
+          <div className={styles.modal}>
+            <div className={styles.modalHeader}>
+              <RotateCcw size={32} className={styles.modalInfoIcon} />
+              <h2 className={styles.modalTitle}>Tiếp tục sản xuất</h2>
+            </div>
+            <p className={styles.modalMessage}>
+              Bạn muốn quay lại sản xuất công đoạn <strong>{showResumeConfirm.stage}</strong> mà không chốt sản lượng?
+            </p>
+            <div className={styles.modalActions}>
+              <button
+                className={styles.modalBtnCancel}
+                onClick={() => setShowResumeConfirm({ show: false, lineId: null, stage: '' })}
+              >
+                Hủy
+              </button>
+              <button
+                className={styles.modalBtnResume}
+                onClick={() => {
+                  resumeProduction(showResumeConfirm.lineId!, showResumeConfirm.stage);
+                }}
+              >
+                Quay lại sản xuất
+              </button>
+            </div>
           </div>
         </div>
-      </div>
-    )}
+      )}
 
       <div className={styles.toastContainer}>
         {toasts.map(t => (
@@ -563,7 +703,7 @@ export default function ProductionTracker() {
             >
               {currentFactory?.lines.map(l => (
                 <option key={l.id} value={l.id}>
-                  {l.name}  
+                  {l.name}
                 </option>
               ))}
             </select>
@@ -601,7 +741,7 @@ export default function ProductionTracker() {
                 </span>
               </div>
 
-              {state.status === 'stopped' && (
+              {state.status === 'pending' && (
                 <div className={styles.buttonContainer}>
                   {/* Hiển thị kết quả lần chốt gần nhất */}
                   {state.quantity && state.area && (
