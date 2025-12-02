@@ -49,22 +49,23 @@ export function StageHistoryPanel({ items, hasSelection, lineName }: StageHistor
                     <div className={styles.historyEmpty}>Chưa có hoạt động nào.</div>
                 ) : (
                     items.map((item) => (
-                        <div className={styles.historyItemWrapper}>
+                        <div key={item.id} className={styles.historyItemWrapper}>
                             <span className={`${styles.historyTag} ${actionClassMap[item.action]}`}>
                                 {actionIconMap[item.action]}
                             </span>
 
-                            <div key={item.id} className={styles.historyItem}>
+                            <div className={styles.historyItem}>
                                 <div className={styles.historyItemHeader}>
                                     <div>
-                                        <div className={styles.historyStage}>{item?.stage?.name}: {item?.notes?.length ? item?.notes : actionLabelMap[item.action]}</div>
+                                        <div className={styles.historyStage}>
+                                            {item?.stage?.name}: {item?.notes?.length ? item.notes : actionLabelMap[item.action]}
+                                        </div>
                                     </div>
                                 </div>
                                 <div className={styles.historyMeta}>
                                     <span className={styles.historyTime}>
-                                        {new Date(item.timestamp).toLocaleTimeString()}
+                                        {new Date(item.startTime).toLocaleTimeString()} - {new Date(item?.endTime).toLocaleTimeString()}
                                     </span>
-                                    |
                                     <span>
                                         {item.quantity && item.area
                                             ? `${item.quantity.toLocaleString()} viên (${item.area} m²)`

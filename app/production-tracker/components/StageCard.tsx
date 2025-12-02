@@ -69,6 +69,18 @@ export default function StageCard({
     const targetOutput = Math.max(maxQuantityForLine, output);
     const progressPercent =
         targetOutput === 0 ? 0 : Math.min(100, Math.round((output / targetOutput) * 100));
+    const formatInteger = (value: number | null | undefined) =>
+        value == null ? '--' : value.toLocaleString('vi-VN');
+    const formatArea = (value: number | null | undefined) =>
+        value == null
+            ? '--'
+            : `${value.toLocaleString('vi-VN', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+            })} m²`;
+    const formattedQuantity = formatInteger(state.quantity);
+    const formattedTarget = formatInteger(targetOutput);
+    const formattedArea = formatArea(state.area);
 
     const productName = product?.name ?? 'Chưa gán dòng gạch';
     const runtimeLabel = runningTime || '--';
@@ -76,8 +88,12 @@ export default function StageCard({
         ? Math.max(1, Math.floor((Date.now() - new Date(state.startTime).getTime()) / 60000))
         : 0;
     const speedValue =
-        runtimeMinutes > 0 ? `${(output / runtimeMinutes).toFixed(1)} viên/phút` : '--';
-    // const wastePercent = output > 0 ? `${(0.4 + (output % 6) * 0.2).toFixed(1)}%` : '--';
+        runtimeMinutes > 0
+            ? `${(output / runtimeMinutes).toLocaleString('vi-VN', {
+                minimumFractionDigits: 1,
+                maximumFractionDigits: 1,
+            })} viên/phút`
+            : '--';
 
     const primaryAction =
         lineId == null
@@ -91,6 +107,7 @@ export default function StageCard({
                             onClick: () => onStop(lineId, stage, false),
                             variant: styles.stagePrimaryBtnDanger,
                             disabled: false,
+                            requiresProduct: false,
                         };
                     case 'waiting_log':
                         return {
@@ -99,6 +116,7 @@ export default function StageCard({
                             onClick: () => onLog(lineId, stage),
                             variant: styles.stagePrimaryBtnInfo,
                             disabled: processingStage === stage,
+                            requiresProduct: false,
                         };
                     default:
                         return {
@@ -106,10 +124,22 @@ export default function StageCard({
                             icon: <Play size={18} />,
                             onClick: () => onStart(lineId, stage),
                             variant: styles.stagePrimaryBtnSuccess,
-                            disabled: !state.productId,
+                            disabled: lineId == null,
+                            requiresProduct: true,
                         };
                 }
             })();
+
+    const handlePrimaryActionClick = () => {
+        if (!primaryAction) {
+            return;
+        }
+        if (primaryAction.requiresProduct && (!state.productId || lineId == null)) {
+            onOpenProductDialog(lineId ?? 0, stage);
+            return;
+        }
+        primaryAction.onClick();
+    };
 
     return (
         <div
@@ -137,15 +167,15 @@ export default function StageCard({
                 <div>
                     <p className={styles.stageInfoLabel}>Dòng gạch</p>
                     <p className={styles.stageInfoValue}>{productName}</p>
-                    {/* <span className={styles.stageInfoSub}>{productSku}</span> */}
                 </div>
-                {resolvedStatus === 'stopped' && lineId !== null && (
+                {lineId !== null && (
                     <button
                         type="button"
-                        className={styles.stageProductSelect}
+                        className={styles.stageProductQuickBtn}
                         onClick={() => onOpenProductDialog(lineId, stage)}
                     >
-                        <Package size={14} /> Chọn
+                        <Package size={14} />
+                        {product ? 'Đổi' : 'Chọn'}
                     </button>
                 )}
             </div>
@@ -154,7 +184,7 @@ export default function StageCard({
                 <div className={styles.stageIOLabelRow}>
                     <span className={styles.stageInfoLabel}>Input</span>
                     <span className={styles.stageIOValue}>
-                        {output.toLocaleString()}
+                        {formattedQuantity} / {formattedTarget}
                     </span>
                 </div>
                 <div className={styles.stageProgressBar}>
@@ -170,11 +200,17 @@ export default function StageCard({
                     <span className={styles.stageMetricValue}>{runtimeLabel}</span>
                 </div>
                 <div className={styles.stageMetricItem}>
-                    <span className={styles.stageInfoLabel}><Package size={14} /> Sản lượng</span>
-                    <span className={styles.stageMetricValue}>{output} viên</span>
+                    <span className={styles.stageInfoLabel}>
+                        <Package size={14} /> Sản lượng
+                    </span>
+                    <span className={styles.stageMetricValue}>
+                        {formattedQuantity} viên · {formattedArea}
+                    </span>
                 </div>
                 <div className={styles.stageMetricItem}>
-                    <span className={styles.stageInfoLabel}><RefreshCw size={14} /> Tốc độ</span>
+                    <span className={styles.stageInfoLabel}>
+                        <RefreshCw size={14} /> Tốc độ
+                    </span>
                     <span className={styles.stageMetricValue}>{speedValue}</span>
                 </div>
             </div>
@@ -184,7 +220,7 @@ export default function StageCard({
                     <button
                         type="button"
                         className={`${styles.stagePrimaryBtn} ${primaryAction.variant}`}
-                        onClick={primaryAction.onClick}
+                        onClick={handlePrimaryActionClick}
                         disabled={primaryAction.disabled}
                     >
                         {primaryAction.icon}
@@ -202,7 +238,7 @@ export default function StageCard({
                         Quay lại
                     </button>
                 )}
-                {resolvedStatus !== 'waiting_log' && lineId !== null && (
+                {resolvedStatus == 'running' && lineId !== null && (
                     <button
                         type="button"
                         className={styles.stageSecondaryBtn}

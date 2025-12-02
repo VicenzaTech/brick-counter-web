@@ -1,9 +1,16 @@
 'use client';
 
+
 export interface Product {
-    id: number;
-    name: string;
-    code: string;
+  id: number;
+  name: string;
+  code: string;
+  specs?: {
+    width?: number;
+    height?: number;
+    thickness?: number;
+    type?: string;
+  };
 }
 
 export interface ProductionLine {
@@ -18,6 +25,14 @@ export interface FactoryData {
     lines: ProductionLine[];
 }
 
+export interface StageDeviceInfo {
+    id: number;
+    deviceId: string;
+    name: string;
+}
+
+export type StageDeviceAssignment = Record<number, StageDeviceInfo[]>;
+
 export interface Toast {
     id: number;
     message: string;
@@ -30,14 +45,14 @@ export enum StageStatus {
 }
 
 export interface StageState {
-    status: 'stopped' | 'running' | 'waiting_log';
+    status: 'pending' | 'running' | 'waiting_log';
     productId: number | null;
     startTime: string | null;
     stopReason: string | null;
     isEmergency?: boolean;
     quantity: number | null;
     area: number | null;
-    previousStatus?: 'stopped' | 'running' | 'waiting_log';
+    previousStatus?: 'pending' | 'running' | 'waiting_log';
 }
 
 export enum StopReason {

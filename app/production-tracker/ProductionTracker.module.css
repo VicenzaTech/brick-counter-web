@@ -279,6 +279,25 @@
   color: #2563eb;
 }
 
+.stageProductQuickBtn {
+  border-radius: 999px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.35rem 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  color: #2563eb;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.stageProductQuickBtn:hover {
+  background: #eff6ff;
+}
+
 .stageInfoLabel {
   font-size: 0.72rem;
   letter-spacing: 0.08em;
@@ -852,10 +871,10 @@
 
 .historyMeta {
   display: flex;
-  align-items: center;
   gap: 0.5rem;
   font-size: 0.78rem;
   color: #6b7280;
+  flex-direction: column;
 }
 
 .historyTime {

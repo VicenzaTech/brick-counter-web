@@ -1,14 +1,23 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { AlertTriangle, CheckCircle, RotateCcw, XCircle } from 'lucide-react';
 import StageCard from './components/StageCard';
 import { SelectionDialog } from './components/SelectionDialog';
-import { StageActionsDialog } from './components/StageActionsDialog';
 import { StageHistoryPanel } from './components/StageHistoryPanel';
 import styles from './ProductionTracker.module.css';
-import { FactoryData, Product, StageHistoryItem, StageState, StageStatus, StopReason, Toast } from './types';
+import {
+    FactoryData,
+    Product,
+    StageDeviceAssignment,
+    StageHistoryItem,
+    StageState,
+    StageStatus,
+    StopReason,
+    Toast,
+} from './types';
 import { apiFetch } from '@/lib/http/http';
+import { useStageSocket } from '@/hooks/useStageSocket';
 
 export default function ProductionTracker() {
     const [products, setProducts] = useState<Product[]>([]);
@@ -19,69 +28,7 @@ export default function ProductionTracker() {
     const [stagesState, setStagesState] = useState<Record<number, Record<string, StageState>>>({});
     const [processingStage, setProcessingStage] = useState<string | null>(null);
     const [toasts, setToasts] = useState<Toast[]>([]);
-    const [stageHistory, setStageHistory] = useState<StageHistoryItem[]>(() => {
-        const now = new Date();
-        return [
-            {
-                id: 1,
-                timestamp: new Date(now.getTime() - 15 * 60 * 1000).toISOString(),
-                lineId: 1,
-                lineName: 'Dây chuyền 1',
-                stageId: 101,
-                stage: { name: 'Nung' },
-                action: 'log',
-                quantity: 12450,
-                area: 1131.8,
-                productId: 1,
-                product: { id: 1, name: 'Gạch 4 lỗ', code: 'G4L' },
-                startTime: new Date(now.getTime() - 4 * 60 * 60 * 1000),
-                endTime: new Date(now.getTime() - 15 * 60 * 1000),
-                stopReason: StopReason.CHANGE_PRODUCT,
-                isEmergency: false,
-                notes: 'Chốt lô ca sáng',
-                createdByUsername: 'Hệ thống',
-                createdAt: new Date(now.getTime() - 15 * 60 * 1000),
-            },
-            {
-                id: 2,
-                timestamp: new Date(now.getTime() - 5 * 60 * 1000).toISOString(),
-                lineId: 1,
-                lineName: 'Dây chuyền 1',
-                stageId: 102,
-                stage: { name: 'Ép gạch' },
-                action: 'start',
-                quantity: null,
-                area: null,
-                productId: 2,
-                product: { id: 2, name: 'Gạch 6 lỗ', code: 'G6L' },
-                startTime: new Date(now.getTime() - 5 * 60 * 1000),
-                isEmergency: false,
-                notes: 'bắt đầu ép gạch',
-                createdByUsername: 'Hệ thống',
-                createdAt: new Date(now.getTime() - 5 * 60 * 1000),
-            },
-            {
-                id: 3,
-                timestamp: new Date(now.getTime() - 2 * 60 * 1000).toISOString(),
-                lineId: 2,
-                lineName: 'Dây chuyền 2',
-                stageId: 201,
-                stage: { name: 'Đóng gói' },
-                action: 'stop',
-                quantity: 8200,
-                area: 745.5,
-                productId: 3,
-                product: { id: 3, name: 'Gạch đặc', code: 'GD01' },
-                startTime: new Date(now.getTime() - 5 * 60 * 60 * 1000),
-                endTime: new Date(now.getTime() - 2 * 60 * 1000),
-                stopReason: StopReason.MAINTENANCE,
-                isEmergency: false,
-                notes: 'Tạm dừng chuyển lô',
-                createdByUsername: 'Hệ thống',
-                createdAt: new Date(now.getTime() - 2 * 60 * 1000),
-            },
-        ];
-    });
+    const [stageHistory, setStageHistory] = useState<StageHistoryItem[]>([]);
     const [showConfirmDialog, setShowConfirmDialog] = useState<{
         show: boolean;
         message: string;
@@ -116,7 +63,145 @@ export default function ProductionTracker() {
         selectedId: null,
     });
     const [lineSearch, setLineSearch] = useState('');
-    const [mobileStageAction, setMobileStageAction] = useState<{ lineId: number | null; stage: string } | null>(null);
+    const [stagesData, setStagesData] = useState<Record<number, Array<{ id: number; name: string }>>>({});
+    const [stageDeviceAssignments, setStageDeviceAssignments] = useState<StageDeviceAssignment>({});
+
+    const deviceStageMapRef = useRef<Record<string, { lineId: number; stageName: string }>>({});
+    const stageDeviceTotalsRef = useRef<Record<number, Record<string, Record<string, number>>>>({});
+    const runningStageDeviceIds = useMemo(() => {
+        if (!selectedLine) return [];
+        const stageList = stagesData[selectedLine] ?? [];
+        const lineStages = stagesState[selectedLine] ?? {};
+        return stageList
+            .flatMap((stageInfo) => {
+                const stageState = lineStages[stageInfo.name];
+                if (!stageState || stageState.status !== 'running') return [];
+                return (stageDeviceAssignments[stageInfo.id] ?? []).map((device) => device.deviceId);
+            })
+            .filter((id): id is string => Boolean(id));
+    }, [selectedLine, stagesData, stagesState, stageDeviceAssignments]);
+
+    const updateStageDeviceTotals = useCallback((lineId: number, stageName: string, deviceId: string, quantity: number) => {
+        if (!stageDeviceTotalsRef.current[lineId]) {
+            stageDeviceTotalsRef.current[lineId] = {};
+        }
+        if (!stageDeviceTotalsRef.current[lineId][stageName]) {
+            stageDeviceTotalsRef.current[lineId][stageName] = {};
+        }
+        stageDeviceTotalsRef.current[lineId][stageName][deviceId] = quantity;
+        return Object.values(stageDeviceTotalsRef.current[lineId][stageName]).reduce(
+            (sum, value) => sum + (Number(value) || 0),
+            0,
+        );
+    }, []);
+
+    const clearStageDeviceTotals = useCallback((lineId: number, stageName?: string) => {
+        if (!stageDeviceTotalsRef.current[lineId]) return;
+        if (stageName) {
+            delete stageDeviceTotalsRef.current[lineId][stageName];
+            if (Object.keys(stageDeviceTotalsRef.current[lineId]).length === 0) {
+                delete stageDeviceTotalsRef.current[lineId];
+            }
+        } else {
+            delete stageDeviceTotalsRef.current[lineId];
+        }
+    }, []);
+
+    useEffect(() => {
+        stageDeviceTotalsRef.current = {};
+    }, [selectedLine]);
+
+    useEffect(() => {
+        if (!selectedLine) {
+            deviceStageMapRef.current = {};
+            return;
+        }
+        const stagesForLine = stagesData[selectedLine] ?? [];
+        const mapping: Record<string, { lineId: number; stageName: string }> = {};
+        stagesForLine.forEach((stageInfo) => {
+            const devices = stageDeviceAssignments[stageInfo.id] ?? [];
+            devices.forEach((device) => {
+                if (device.deviceId) {
+                    mapping[device.deviceId] = { lineId: selectedLine, stageName: stageInfo.name };
+                }
+            });
+        });
+        deviceStageMapRef.current = mapping;
+    }, [selectedLine, stageDeviceAssignments, stagesData]);
+
+    const computeAreaForProduct = useCallback(
+        (quantity: number, productId: number | null) => {
+            if (!quantity) return 0;
+            const product = productId != null ? products.find((p) => p.id === productId) : null;
+            if (product?.specs?.width && product?.specs?.height) {
+                const areaPerTile = (product.specs.width * product.specs.height) / 1_000_000;
+                return parseFloat((quantity * areaPerTile).toFixed(2));
+            }
+            return parseFloat((quantity / 11).toFixed(2));
+        },
+        [products],
+    );
+
+    const getDeviceIdsForStage = useCallback(
+        (lineId: number, stageName: string): string[] => {
+            const stageList = stagesData[lineId] ?? [];
+            const stageEntry = stageList.find((stage) => stage.name === stageName);
+            if (!stageEntry) return [];
+            return (stageDeviceAssignments[stageEntry.id] ?? [])
+                .map((device) => device.deviceId)
+                .filter((id): id is string => Boolean(id));
+        },
+        [stageDeviceAssignments, stagesData],
+    );
+
+    const handleStageTelemetry = useCallback(
+        (payload: any) => {
+            console.log('message', payload)
+            const deviceIdentifier: string | undefined =
+                payload?.deviceId || payload?.device_id || payload?.metadata?.deviceId;
+            if (!deviceIdentifier) return;
+            const target = deviceStageMapRef.current[deviceIdentifier];
+            if (!target) return;
+            const quantityCandidates = [
+                payload?.metrics?.total,
+            ];
+            let quantityValue: number | null = null;
+            for (const candidate of quantityCandidates) {
+                const parsed = Number(candidate);
+                if (Number.isFinite(parsed)) {
+                    quantityValue = parsed;
+                    break;
+                }
+            }
+            console.log('quantity value', quantityValue)
+            if (quantityValue == null) return;
+
+            setStagesState((prev) => {
+                const lineStages = prev[target.lineId];
+                if (!lineStages) return prev;
+                const currentStageState = lineStages[target.stageName];
+                if (!currentStageState) return prev;
+                const area = computeAreaForProduct(quantityValue, currentStageState.productId);
+                return {
+                    ...prev,
+                    [target.lineId]: {
+                        ...lineStages,
+                        [target.stageName]: {
+                            ...currentStageState,
+                            quantity: quantityValue,
+                            area,
+                        },
+                    },
+                };
+            });
+        },
+        [computeAreaForProduct],
+    );
+    const { joinDeviceRoom, leaveDeviceRoom } = useStageSocket({
+        deviceIds: runningStageDeviceIds,
+        productionLineId: selectedLine ?? null,
+        onTelemetry: handleStageTelemetry,
+    });
 
     const stopActionRef = useRef<{
         lineId: number | null;
@@ -129,7 +214,6 @@ export default function ProductionTracker() {
         isEmergency: false,
         reason: null,
     });
-    const previousStagesRef = useRef<Record<number, Record<string, StageState>>>({});
     const seededLinesRef = useRef<Set<number>>(new Set());
 
     useEffect(() => {
@@ -141,7 +225,9 @@ export default function ProductionTracker() {
     useEffect(() => {
         if (selectedLine) {
             void fetchStagesForLine(selectedLine);
-            void fetchStageHistoryForLine(selectedLine)
+            void fetchStageHistoryForLine(selectedLine);
+        } else {
+            setStageHistory([]);
         }
     }, [selectedLine]);
 
@@ -182,6 +268,31 @@ export default function ProductionTracker() {
         }
     };
 
+    const normalizeStageDeviceMap = useCallback((rawMap: any): StageDeviceAssignment => {
+        const normalized: StageDeviceAssignment = {};
+        if (!rawMap || typeof rawMap !== 'object') {
+            return normalized;
+        }
+
+        const assignDevices = (stageKey: string, devices: any) => {
+            const stageId = Number(stageKey);
+            if (!Number.isFinite(stageId)) return;
+            normalized[stageId] = Array.isArray(devices) ? devices : [];
+        };
+
+        Object.entries(rawMap).forEach(([outerKey, value]) => {
+            if (Array.isArray(value) || value == null) {
+                assignDevices(outerKey, value ?? []);
+            } else if (value && typeof value === 'object') {
+                Object.entries(value).forEach(([stageKey, devices]) => {
+                    assignDevices(stageKey, devices);
+                });
+            }
+        });
+
+        return normalized;
+    }, []);
+
     const fetchStagesForLine = async (lineId: number) => {
         try {
             const response = await apiFetch(`/api/production-stages/by-production-line-id/${lineId}`);
@@ -191,7 +302,38 @@ export default function ProductionTracker() {
                 throw new Error((errorData as any).message || 'Failed to fetch stages');
             }
 
-            const stages = await response.json();
+            const { stageDeviceMap, stages } = await response.json();
+            setStagesData((prev) => ({
+                ...prev,
+                [lineId]: stages.map((stage: any) => ({
+                    id: stage.id,
+                    name: stage.name || stage.stageName,
+                })),
+            }));
+
+            const stageIdsForLine = stages.map((stage: any) => Number(stage.id)).filter((id: number) =>
+                Number.isFinite(id),
+            );
+
+            if (stageDeviceMap) {
+                const normalized = normalizeStageDeviceMap(stageDeviceMap);
+                setStageDeviceAssignments((prev) => {
+                    const next = { ...prev };
+                    stageIdsForLine.forEach((stageId: number) => {
+                        next[stageId] = normalized[stageId] ?? [];
+                    });
+                    return next;
+                });
+            } else {
+                setStageDeviceAssignments((prev) => {
+                    const next = { ...prev };
+                    stageIdsForLine.forEach((stageId: number) => {
+                        delete next[stageId];
+                    });
+                    return next;
+                });
+            }
+
             stages.forEach((stage: any) => {
                 updateStageState(lineId, stage.name || stage.stageName, {
                     status: stage.status || 'stopped',
@@ -231,71 +373,21 @@ export default function ProductionTracker() {
                 throw new Error((errorData as any).message || 'Failed to fetch stages');
             }
 
-            const history = await response.json();
-            setStageHistory(history)
+            const history = (await response.json()) as StageHistoryItem[];
+            setStageHistory(history);
         } catch (error) {
-            console.error('Error in fetchStagesForLine:', error);
-            showToast('Không thể tải danh sách công đoạn!', 'error');
+            console.error('Error in fetchStageHistoryForLine:', error);
+            showToast('Không thể tải lịch sử hoạt động!', 'error');
         }
-    }
+    };
+    const refreshVisibleHistory = (lineId: number) => {
+        if (selectedLine === lineId) {
+            void fetchStageHistoryForLine(lineId);
+        }
+    };
 
     useEffect(() => {
         saveStateToStorage(stagesState);
-    }, [stagesState]);
-
-    useEffect(() => {
-        const previous = previousStagesRef.current;
-        const current = stagesState;
-
-        Object.entries(current).forEach(([lineIdKey, stages]) => {
-            const lineId = Number(lineIdKey);
-            const previousStages = previous[lineId] || {};
-
-            Object.entries(stages).forEach(([stageName, state]) => {
-                const previousState = previousStages[stageName];
-
-                if (!previousState) {
-                    return;
-                }
-
-                if (
-                    previousState.status === state.status &&
-                    previousState.quantity === state.quantity &&
-                    previousState.area === state.area
-                ) {
-                    return;
-                }
-
-                if (previousState.status !== state.status) {
-                    if (previousState.status === 'stopped' && state.status === 'running') {
-                        addStageHistoryEntry(lineId, stageName, 'start', { productId: state.productId });
-                    } else if (previousState.status === 'running' && state.status === 'waiting_log') {
-                        addStageHistoryEntry(lineId, stageName, state.isEmergency ? 'emergency_stop' : 'stop', {
-                            productId: state.productId,
-                        });
-                    } else if (previousState.status === 'waiting_log' && state.status === 'stopped') {
-                        addStageHistoryEntry(lineId, stageName, 'log', {
-                            quantity: state.quantity,
-                            area: state.area,
-                            productId: state.productId,
-                        });
-                    } else if (previousState.status === 'waiting_log' && state.status === 'running') {
-                        addStageHistoryEntry(lineId, stageName, 'resume', { productId: state.productId });
-                    }
-                } else if (
-                    state.status === 'stopped' &&
-                    (previousState.quantity !== state.quantity || previousState.area !== state.area)
-                ) {
-                    addStageHistoryEntry(lineId, stageName, 'log', {
-                        quantity: state.quantity,
-                        area: state.area,
-                        productId: state.productId,
-                    });
-                }
-            });
-        });
-
-        previousStagesRef.current = current;
     }, [stagesState]);
 
     useEffect(() => {
@@ -353,47 +445,47 @@ export default function ProductionTracker() {
         });
     }, [products, stagesState]);
 
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setStagesState((prev) => {
-                const nextState: typeof prev = { ...prev };
-                let hasChanges = false;
+    // useEffect(() => {
+    //     const interval = setInterval(() => {
+    //         setStagesState((prev) => {
+    //             const nextState: typeof prev = { ...prev };
+    //             let hasChanges = false;
 
-                Object.entries(prev).forEach(([lineIdKey, stageMap]) => {
-                    if (!stageMap) return;
-                    const updatedStages: Record<string, StageState> = { ...stageMap };
-                    let lineChanged = false;
+    //             Object.entries(prev).forEach(([lineIdKey, stageMap]) => {
+    //                 if (!stageMap) return;
+    //                 const updatedStages: Record<string, StageState> = { ...stageMap };
+    //                 let lineChanged = false;
 
-                    Object.entries(stageMap).forEach(([stageName, stageState]) => {
-                        if (stageState.status !== 'running') {
-                            return;
-                        }
+    //                 Object.entries(stageMap).forEach(([stageName, stageState]) => {
+    //                     if (stageState.status !== 'running') {
+    //                         return;
+    //                     }
 
-                        const increment = Math.floor(Math.random() * 120) + 40;
-                        const newQuantity = (stageState.quantity ?? 0) + increment;
-                        const newArea = parseFloat((newQuantity / 11).toFixed(2));
+    //                     const increment = Math.floor(Math.random() * 120) + 40;
+    //                     const newQuantity = (stageState.quantity ?? 0) + increment;
+    //                     const newArea = parseFloat((newQuantity / 11).toFixed(2));
 
-                        updatedStages[stageName] = {
-                            ...stageState,
-                            quantity: newQuantity,
-                            area: newArea,
-                            startTime: stageState.startTime ?? new Date().toISOString(),
-                        };
-                        lineChanged = true;
-                    });
+    //                     updatedStages[stageName] = {
+    //                         ...stageState,
+    //                         quantity: newQuantity,
+    //                         area: newArea,
+    //                         startTime: stageState.startTime ?? new Date().toISOString(),
+    //                     };
+    //                     lineChanged = true;
+    //                 });
 
-                    if (lineChanged) {
-                        nextState[Number(lineIdKey)] = updatedStages;
-                        hasChanges = true;
-                    }
-                });
+    //                 if (lineChanged) {
+    //                     nextState[Number(lineIdKey)] = updatedStages;
+    //                     hasChanges = true;
+    //                 }
+    //             });
 
-                return hasChanges ? nextState : prev;
-            });
-        }, 5000);
+    //             return hasChanges ? nextState : prev;
+    //         });
+    //     }, 5000);
 
-        return () => clearInterval(interval);
-    }, []);
+    //     return () => clearInterval(interval);
+    // }, []);
 
     const fetchProducts = async () => {
         try {
@@ -427,61 +519,6 @@ export default function ProductionTracker() {
         const id = Date.now();
         setToasts((prev) => [...prev, { id, message, type }]);
         setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
-    };
-
-    const getLineName = (lineId: number): string => {
-        for (const factory of factories) {
-            const line = factory.lines.find((l) => l.id === lineId);
-            if (line) {
-                return line.name;
-            }
-        }
-        return `Line #${lineId}`;
-    };
-
-    const addStageHistoryEntry = (
-        lineId: number,
-        stage: string,
-        action: StageHistoryItem['action'],
-        extras?: { quantity?: number | null; area?: number | null; productId?: number | null },
-    ) => {
-        const lineName = getLineName(lineId);
-        const product =
-            extras?.productId != null ? products.find((p) => p.id === extras.productId) ?? null : null;
-        const now = new Date();
-        const historyEntry: StageHistoryItem = {
-            id: Date.now() + Math.random(),
-            timestamp: now.toISOString(),
-            lineId,
-            lineName,
-            stageId: Math.floor(Math.random() * 100000),
-            stage: { name: stage },
-            action,
-            quantity: extras?.quantity ?? null,
-            area: extras?.area ?? null,
-            productId: product?.id,
-            product: product
-                ? {
-                    id: product.id,
-                    name: product.name,
-                    code: product.code,
-                }
-                : undefined,
-            startTime: now,
-            endTime: action === 'log' ? now : undefined,
-            stopReason:
-                action === 'stop' || action === 'emergency_stop'
-                    ? action === 'emergency_stop'
-                        ? StopReason.MACHINE_ERROR
-                        : StopReason.CHANGE_PRODUCT
-                    : undefined,
-            isEmergency: action === 'emergency_stop',
-            notes: '',
-            createdByUsername: 'Hệ thống',
-            createdAt: now,
-        };
-
-        setStageHistory((prev) => [historyEntry, ...prev]);
     };
 
     const getStageState = (lineId: number, stage: string): StageState => {
@@ -594,40 +631,58 @@ export default function ProductionTracker() {
         closeLineDialog();
     };
 
-    const startProduction = async (lineId: number, stage: string) => {
-        const state = getStageState(lineId, stage);
+    const startProduction = async (lineId: number, stageName: string) => {
+        const state = getStageState(lineId, stageName);
         if (!state.productId) {
             showToast('Vui lòng chọn dòng gạch trước!', 'error');
+            openProductDialog(lineId, stageName);
             return;
         }
-
         try {
-            await apiFetch('/api/production-stages/update-status', {
+            // Get the stage ID from the stagesData state
+            const stage = stagesData[lineId]?.find(s => s.name === stageName);
+            if (!stage) {
+                throw new Error('Không tìm thấy thông tin công đoạn');
+            }
+
+            const startTime = new Date().toISOString();
+            const response = await apiFetch('/api/production-stages/update-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
+                    status: StageStatus.RUNNING,
                     productionLineId: lineId,
-                    stageName: stage,
-                    status: 'running',
-                    startTime: new Date().toISOString(),
+                    stageName: stage.name,
                     productId: state.productId,
                 }),
             });
 
-            updateStageState(lineId, stage, {
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                console.error('❌ API error:', errorData);
+                throw new Error('Failed to update production stage');
+            }
+
+            // Update local state
+            updateStageState(lineId, stageName, {
                 status: 'running',
-                startTime: new Date().toISOString(),
+                startTime: startTime,
+                productId: state.productId,
                 stopReason: null,
                 quantity: null,
-                area: null,
+                area: null
             });
-
-            showToast(`Đã khởi động công đoạn ${stage}`, 'success');
+            showToast(`Đã khởi động công đoạn ${stageName}`, 'success');
+            refreshVisibleHistory(lineId);
+            const devicesForStage = getDeviceIdsForStage(lineId, stageName);
+            devicesForStage.forEach((deviceId) => joinDeviceRoom(deviceId));
         } catch (error) {
-            console.error('Error starting production:', error);
-            showToast('Lỗi khi cập nhật trạng thái sản xuất', 'error');
+            console.error('Error in startProduction:', error);
+            showToast('Có lỗi xảy ra khi khởi động công đoạn sản xuất', 'error');
         }
     };
+
 
     const confirmStopProduction = (lineId: number, stage: string, isEmergency: boolean) => {
         stopActionRef.current = { lineId, stage, isEmergency, reason: null };
@@ -659,6 +714,7 @@ export default function ProductionTracker() {
                     showToast(`Đã dừng công đoạn ${stage}`, 'success');
                     stopActionRef.current.reason = null;
                     setShowConfirmDialog({ show: false, message: '', selectedReason: null, onConfirm: null, onCancel: null });
+                    refreshVisibleHistory(lineId);
                 }
             },
             onCancel: () => {
@@ -676,19 +732,32 @@ export default function ProductionTracker() {
         setShowResumeConfirm({ show: true, lineId, stage });
     };
 
-    const resumeProduction = (lineId: number, stage: string) => {
+    const resumeProduction = async (lineId: number, stage: string) => {
         try {
             setProcessingStage(stage)
-            const state = getStageState(lineId, stage);
-
-            updateStageState(lineId, stage, {
-                status: 'running',
-                stopReason: null,
-                isEmergency: false,
-                startTime: state.startTime || new Date().toISOString(),
+            const response = await apiFetch('/api/production-stages/update-status', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    status: StageStatus.RUNNING,
+                    productionLineId: lineId,
+                    stageName: stage,
+                }),
             });
-            showToast(`Tiếp tục công đoạn ${stage}`, 'success');
-            setShowResumeConfirm({ show: false, lineId: null, stage: '' });
+
+            if (response.ok) {
+                const state = getStageState(lineId, stage);
+
+                updateStageState(lineId, stage, {
+                    status: 'running',
+                    stopReason: null,
+                    isEmergency: false,
+                    startTime: state.startTime || new Date().toISOString(),
+                });
+                showToast(`Tiếp tục công đoạn ${stage}`, 'success');
+                setShowResumeConfirm({ show: false, lineId: null, stage: '' });
+                refreshVisibleHistory(lineId);
+            }
         }
         catch {
 
@@ -703,8 +772,17 @@ export default function ProductionTracker() {
     };
 
     const logProduction = async (lineId: number, stage: string) => {
+        const state = getStageState(lineId, stage);
         try {
             setProcessingStage(stage);
+            const stageObj = stagesData[lineId]?.find(s => s.name === stage);
+            const stageId = stageObj?.id;
+
+            if (!stageId) {
+                throw new Error('Stage ID not found');
+            }
+
+            // Gọi API cập nhật trạng thái về 'pending' (chốt sản lượng) - ĐẶT CUỐI CÙNG
             const response = await apiFetch('/api/production-stages/update-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -714,21 +792,28 @@ export default function ProductionTracker() {
                     stageName: stage,
                 }),
             });
-            if (response.ok) {
-                const qty = 0;
-                const area = parseFloat((qty / 11).toFixed(2));
-                updateStageState(lineId, stage, {
-                    status: 'stopped',
-                    quantity: qty,
-                    area,
-                    startTime: null,
-                    stopReason: null,
-                    isEmergency: false,
-                });
-                showToast(`Chốt ${stage}: ${qty.toLocaleString()} viên (${area} m²)`, 'success');
+            // quantity: qty,
+            // area: area,
+            // productId: state.productId,
+
+            if (!response.ok) {
+                throw new Error('Failed to update production stage status');
             }
+
+            // Update local state only after successful API call
+            updateStageState(lineId, stage, {
+                status: 'pending',
+                startTime: null,
+                stopReason: null,
+                isEmergency: false
+            });
+            showToast(`Đã chốt sản lượng công đoạn ${stage}`, 'success');
+            refreshVisibleHistory(lineId);
+            const devicesForStage = getDeviceIdsForStage(lineId, stage);
+            devicesForStage.forEach((deviceId) => leaveDeviceRoom(deviceId));
         } catch (error) {
-            showToast('Lỗi khi chốt sản lượng', 'error');
+            console.error('❌ Error in logProduction:', error);
+            showToast('Lỗi khi chốt sản lượng!', 'error');
         } finally {
             setProcessingStage(null);
         }
@@ -756,11 +841,6 @@ export default function ProductionTracker() {
             topStageName = stageName;
         }
     });
-
-    const recentHistoryForCurrentLine =
-        selectedLine == null
-            ? stageHistory.slice(0, 10)
-            : stageHistory.filter((item) => item.lineId === selectedLine).slice(0, 10);
 
     const stopReasonOptions: { value: StopReason; label: string }[] = [
         { value: StopReason.CHANGE_PRODUCT, label: 'Đổi sản phẩm' },
@@ -1077,7 +1157,7 @@ export default function ProductionTracker() {
                     </div>
                 </div>
                 <StageHistoryPanel
-                    items={recentHistoryForCurrentLine}
+                    items={stageHistory ?? []}
                     hasSelection={Boolean(selectedLine && currentLine)}
                     lineName={currentLine?.name ?? null}
                 />
@@ -1086,5 +1166,4 @@ export default function ProductionTracker() {
         </div>
     );
 }
-
 
