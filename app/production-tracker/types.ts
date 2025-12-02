@@ -29,6 +29,7 @@ export interface StageDeviceInfo {
     id: number;
     deviceId: string;
     name: string;
+    position?: number;
 }
 
 export type StageDeviceAssignment = Record<number, StageDeviceInfo[]>;
@@ -52,6 +53,7 @@ export interface StageState {
     isEmergency?: boolean;
     quantity: number | null;
     area: number | null;
+    deviceQuantities?: Record<string, number>;
     previousStatus?: 'pending' | 'running' | 'waiting_log';
 }
 

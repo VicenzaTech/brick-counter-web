@@ -156,14 +156,22 @@ export default function ProductionTracker() {
 
     const handleStageTelemetry = useCallback(
         (payload: any) => {
-            console.log('message', payload)
+            console.log('📡 Telemetry received:', payload);
             const deviceIdentifier: string | undefined =
                 payload?.deviceId || payload?.device_id || payload?.metadata?.deviceId;
-            if (!deviceIdentifier) return;
+            if (!deviceIdentifier) {
+                console.warn('⚠️ No deviceId in telemetry payload');
+                return;
+            }
             const target = deviceStageMapRef.current[deviceIdentifier];
-            if (!target) return;
+            if (!target) {
+                console.warn(`⚠️ Device ${deviceIdentifier} not mapped to any stage`);
+                return;
+            }
             const quantityCandidates = [
                 payload?.metrics?.total,
+                payload?.total,
+                payload?.data?.metrics?.total,
             ];
             let quantityValue: number | null = null;
             for (const candidate of quantityCandidates) {
@@ -173,7 +181,7 @@ export default function ProductionTracker() {
                     break;
                 }
             }
-            console.log('quantity value', quantityValue)
+            console.log(`📊 Device ${deviceIdentifier} quantity:`, quantityValue);
             if (quantityValue == null) return;
 
             setStagesState((prev) => {
@@ -181,21 +189,54 @@ export default function ProductionTracker() {
                 if (!lineStages) return prev;
                 const currentStageState = lineStages[target.stageName];
                 if (!currentStageState) return prev;
-                const area = computeAreaForProduct(quantityValue, currentStageState.productId);
+                
+                // Update deviceQuantities map
+                const updatedDeviceQuantities = {
+                    ...(currentStageState.deviceQuantities || {}),
+                    [deviceIdentifier]: quantityValue,
+                };
+                
+                // Calculate total from highest position devices
+                const stagesForLine = stagesData[target.lineId] ?? [];
+                const stageInfo = stagesForLine.find(s => s.name === target.stageName);
+                const stageId = stageInfo?.id;
+                
+                let totalQuantity = quantityValue; // Default to single device
+                
+                if (stageId) {
+                    const devicesForStage = stageDeviceAssignments[stageId] ?? [];
+                    const maxPosition = devicesForStage.length > 0
+                        ? Math.max(...devicesForStage.map(d => d.position ?? 0))
+                        : 0;
+                    
+                    const highestPositionDevices = devicesForStage.filter(d => d.position === maxPosition);
+                    
+                    // Sum quantities from highest position devices
+                    totalQuantity = highestPositionDevices.reduce((sum, device) => {
+                        const qty = updatedDeviceQuantities[device.deviceId] ?? 0;
+                        return sum + qty;
+                    }, 0);
+                }
+                
+                const area = computeAreaForProduct(totalQuantity, currentStageState.productId);
+                
+                console.log(`✅ Updated stage ${target.stageName}: total=${totalQuantity}, area=${area}`);
+                
                 return {
                     ...prev,
                     [target.lineId]: {
                         ...lineStages,
                         [target.stageName]: {
                             ...currentStageState,
-                            quantity: quantityValue,
+                            deviceQuantities: updatedDeviceQuantities,
+                            quantity: totalQuantity,
                             area,
                         },
                     },
                 };
             });
         },
-        [computeAreaForProduct],
+        [computeAreaForProduct, stagesData, stageDeviceAssignments],
     );
     const { joinDeviceRoom, leaveDeviceRoom } = useStageSocket({
         deviceIds: runningStageDeviceIds,
@@ -274,18 +315,15 @@ export default function ProductionTracker() {
             return normalized;
         }
 
-        const assignDevices = (stageKey: string, devices: any) => {
-            const stageId = Number(stageKey);
-            if (!Number.isFinite(stageId)) return;
-            normalized[stageId] = Array.isArray(devices) ? devices : [];
-        };
-
-        Object.entries(rawMap).forEach(([outerKey, value]) => {
-            if (Array.isArray(value) || value == null) {
-                assignDevices(outerKey, value ?? []);
-            } else if (value && typeof value === 'object') {
-                Object.entries(value).forEach(([stageKey, devices]) => {
-                    assignDevices(stageKey, devices);
+        // Backend returns: { lineId: { stageId: [devices] } }
+        // We need to flatten to: { stageId: [devices] }
+        Object.values(rawMap).forEach((lineData: any) => {
+            if (lineData && typeof lineData === 'object' && !Array.isArray(lineData)) {
+                Object.entries(lineData).forEach(([stageKey, devices]) => {
+                    const stageId = Number(stageKey);
+                    if (Number.isFinite(stageId) && Array.isArray(devices)) {
+                        normalized[stageId] = devices;
+                    }
                 });
             }
         });
@@ -303,6 +341,9 @@ export default function ProductionTracker() {
             }
 
             const { stageDeviceMap, stages } = await response.json();
+            console.log('📊 Fetched stages:', stages);
+            console.log('📊 Stage device map:', stageDeviceMap);
+            
             setStagesData((prev) => ({
                 ...prev,
                 [lineId]: stages.map((stage: any) => ({
@@ -317,10 +358,12 @@ export default function ProductionTracker() {
 
             if (stageDeviceMap) {
                 const normalized = normalizeStageDeviceMap(stageDeviceMap);
+                console.log('📊 Normalized device assignments:', normalized);
                 setStageDeviceAssignments((prev) => {
                     const next = { ...prev };
                     stageIdsForLine.forEach((stageId: number) => {
                         next[stageId] = normalized[stageId] ?? [];
+                        console.log(`📊 Stage ${stageId}: ${normalized[stageId]?.length || 0} devices`);
                     });
                     return next;
                 });
@@ -390,60 +433,60 @@ export default function ProductionTracker() {
         saveStateToStorage(stagesState);
     }, [stagesState]);
 
-    useEffect(() => {
-        if (products.length === 0) return;
-        const lineIdsToSeed = Object.keys(stagesState)
-            .map(Number)
-            .filter(
-                (lineId) =>
-                    !seededLinesRef.current.has(lineId) &&
-                    Object.keys(stagesState[lineId] || {}).length > 0,
-            );
-        if (lineIdsToSeed.length === 0) {
-            return;
-        }
-        setStagesState((prev) => {
-            const nextState: typeof prev = { ...prev };
-            let changed = false;
-            lineIdsToSeed.forEach((lineId) => {
-                const stageMap = prev[lineId];
-                if (!stageMap) return;
-                const updatedStages: Record<string, StageState> = {};
-                let index = 0;
-                Object.entries(stageMap).forEach(([stageName, stageState]) => {
-                    const product = products[(lineId + index) % products.length];
-                    index += 1;
-                    const randomStatus =
-                        stageState.status ||
-                        (index === 1 ? 'running' : Math.random() > 0.45 ? 'running' : 'stopped');
-                    const randomOffset = Math.floor(Math.random() * 45 * 60 * 1000);
-                    const startTime =
-                        randomStatus === 'running'
-                            ? stageState.startTime ?? new Date(Date.now() - randomOffset).toISOString()
-                            : null;
-                    const randomQuantityBase = Math.floor(Math.random() * 3500) + 1500;
-                    const quantity =
-                        randomStatus === 'running'
-                            ? Math.floor(randomQuantityBase * 0.6)
-                            : randomQuantityBase;
-                    const area = parseFloat((quantity / 11).toFixed(2));
-                    updatedStages[stageName] = {
-                        ...stageState,
-                        status: randomStatus,
-                        productId: stageState.productId ?? product?.id ?? null,
-                        startTime,
-                        quantity,
-                        area,
-                        isEmergency: false,
-                    };
-                });
-                seededLinesRef.current.add(lineId);
-                nextState[lineId] = updatedStages;
-                changed = true;
-            });
-            return changed ? nextState : prev;
-        });
-    }, [products, stagesState]);
+    // useEffect(() => {
+    //     if (products.length === 0) return;
+    //     const lineIdsToSeed = Object.keys(stagesState)
+    //         .map(Number)
+    //         .filter(
+    //             (lineId) =>
+    //                 !seededLinesRef.current.has(lineId) &&
+    //                 Object.keys(stagesState[lineId] || {}).length > 0,
+    //         );
+    //     if (lineIdsToSeed.length === 0) {
+    //         return;
+    //     }
+    //     setStagesState((prev) => {
+    //         const nextState: typeof prev = { ...prev };
+    //         let changed = false;
+    //         lineIdsToSeed.forEach((lineId) => {
+    //             const stageMap = prev[lineId];
+    //             if (!stageMap) return;
+    //             const updatedStages: Record<string, StageState> = {};
+    //             let index = 0;
+    //             Object.entries(stageMap).forEach(([stageName, stageState]) => {
+    //                 const product = products[(lineId + index) % products.length];
+    //                 index += 1;
+    //                 const randomStatus =
+    //                     stageState.status ||
+    //                     (index === 1 ? 'running' : Math.random() > 0.45 ? 'running' : 'stopped');
+    //                 const randomOffset = Math.floor(Math.random() * 45 * 60 * 1000);
+    //                 const startTime =
+    //                     randomStatus === 'running'
+    //                         ? stageState.startTime ?? new Date(Date.now() - randomOffset).toISOString()
+    //                         : null;
+    //                 const randomQuantityBase = Math.floor(Math.random() * 3500) + 1500;
+    //                 const quantity =
+    //                     randomStatus === 'running'
+    //                         ? Math.floor(randomQuantityBase * 0.6)
+    //                         : randomQuantityBase;
+    //                 const area = parseFloat((quantity / 11).toFixed(2));
+    //                 updatedStages[stageName] = {
+    //                     ...stageState,
+    //                     status: randomStatus,
+    //                     productId: stageState.productId ?? product?.id ?? null,
+    //                     startTime,
+    //                     quantity,
+    //                     area,
+    //                     isEmergency: false,
+    //                 };
+    //             });
+    //             seededLinesRef.current.add(lineId);
+    //             nextState[lineId] = updatedStages;
+    //             changed = true;
+    //         });
+    //         return changed ? nextState : prev;
+    //     });
+    // }, [products, stagesState]);
 
     // useEffect(() => {
     //     const interval = setInterval(() => {
@@ -633,6 +676,7 @@ export default function ProductionTracker() {
 
     const startProduction = async (lineId: number, stageName: string) => {
         const state = getStageState(lineId, stageName);
+        console.log(state)
         if (!state.productId) {
             showToast('Vui lòng chọn dòng gạch trước!', 'error');
             openProductDialog(lineId, stageName);
@@ -657,12 +701,14 @@ export default function ProductionTracker() {
                 }),
             });
 
-
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
                 console.error('❌ API error:', errorData);
                 throw new Error('Failed to update production stage');
             }
+
+            const responseData = await response.json();
+            console.log('✅ Success response:', responseData);
 
             // Update local state
             updateStageState(lineId, stageName, {
@@ -1111,6 +1157,11 @@ export default function ProductionTracker() {
                         const state = getStageState(selectedLine ?? 0, stage);
                         const product = products.find((p) => p.id === state.productId) || null;
                         const runningTime = getRunningTime(state.startTime);
+                        
+                        // Get devices for this stage
+                        const stageInfo = selectedLine ? stagesData[selectedLine]?.find(s => s.name === stage) : null;
+                        const devices = stageInfo ? (stageDeviceAssignments[stageInfo.id] ?? []) : [];
+                        
                         return (
                             <StageCard
                                 key={stage}
@@ -1118,6 +1169,7 @@ export default function ProductionTracker() {
                                 stage={stage}
                                 state={state}
                                 product={product}
+                                devices={devices}
                                 maxQuantityForLine={maxQuantityForLine}
                                 runningTime={runningTime}
                                 processingStage={processingStage}

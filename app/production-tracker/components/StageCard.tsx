@@ -1,6 +1,6 @@
 'use client';
 
-import { Product, StageState } from '@/app/production-tracker/types';
+import { Product, StageState, StageDeviceInfo } from '@/app/production-tracker/types';
 import {
     Play,
     Pause,
@@ -20,6 +20,7 @@ interface StageCardProps {
     stage: string;
     state: StageState;
     product: Product | null;
+    devices: StageDeviceInfo[];
     maxQuantityForLine: number;
     runningTime: string;
     processingStage: string | null;
@@ -50,6 +51,7 @@ export default function StageCard({
     stage,
     state,
     product,
+    devices,
     maxQuantityForLine,
     runningTime,
     processingStage,
@@ -69,21 +71,37 @@ export default function StageCard({
     const targetOutput = Math.max(maxQuantityForLine, output);
     const progressPercent =
         targetOutput === 0 ? 0 : Math.min(100, Math.round((output / targetOutput) * 100));
-    const formatInteger = (value: number | null | undefined) =>
-        value == null ? '--' : value.toLocaleString('vi-VN');
-    const formatArea = (value: number | null | undefined) =>
-        value == null
-            ? '--'
-            : `${value.toLocaleString('vi-VN', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-            })} m²`;
+    const formatInteger = (value: number | null | undefined, showZero: boolean = false) => {
+        if (value == null) return '--';
+        if (value === 0 && !showZero) return '--';
+        return value.toLocaleString('vi-VN');
+    };
+    const formatArea = (value: number | null | undefined, showZero: boolean = false) => {
+        if (value == null) return '--';
+        if (value === 0 && !showZero) return '--';
+        return `${value.toLocaleString('vi-VN', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+        })} m²`;
+    };
     const formattedQuantity = formatInteger(state.quantity);
     const formattedTarget = formatInteger(targetOutput);
     const formattedArea = formatArea(state.area);
 
     const productName = product?.name ?? 'Chưa gán dòng gạch';
-    const runtimeLabel = runningTime || '--';
+    
+    // Format start time
+    const startTimeLabel = state.startTime
+        ? new Date(state.startTime).toLocaleString('vi-VN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+        })
+        : '--';
+    
     const runtimeMinutes = state.startTime
         ? Math.max(1, Math.floor((Date.now() - new Date(state.startTime).getTime()) / 60000))
         : 0;
@@ -94,6 +112,31 @@ export default function StageCard({
                 maximumFractionDigits: 1,
             })} viên/phút`
             : '--';
+
+    // Calculate real-time area based on product specs
+    const realtimeArea = product?.specs?.width && product?.specs?.height && output > 0
+        ? parseFloat(((product.specs.width * product.specs.height / 1000000) * output).toFixed(2))
+        : 0;
+    const formattedRealtimeArea = formatArea(realtimeArea);
+
+    // Calculate stage production total from highest position devices
+    const maxPosition = devices && devices.length > 0 
+        ? Math.max(...devices.map(d => d.position ?? 0))
+        : 0;
+    
+    const highestPositionDevices = devices?.filter(d => d.position === maxPosition) ?? [];
+    
+    const stageTotalQuantity = highestPositionDevices.reduce((sum, device) => {
+        const qty = state.deviceQuantities?.[device.deviceId] ?? 0;
+        return sum + qty;
+    }, 0);
+    
+    const stageTotalArea = product?.specs?.width && product?.specs?.height && stageTotalQuantity > 0
+        ? parseFloat(((product.specs.width * product.specs.height / 1000000) * stageTotalQuantity).toFixed(2))
+        : 0;
+    
+    const formattedStageTotalQty = formatInteger(stageTotalQuantity);
+    const formattedStageTotalArea = formatArea(stageTotalArea);
 
     const primaryAction =
         lineId == null
@@ -180,38 +223,91 @@ export default function StageCard({
                 )}
             </div>
 
-            <div className={styles.stageIOSection}>
-                <div className={styles.stageIOLabelRow}>
-                    <span className={styles.stageInfoLabel}>Input</span>
-                    <span className={styles.stageIOValue}>
-                        {formattedQuantity} / {formattedTarget}
-                    </span>
+            {/* Real-time Data Section */}
+            <div className={styles.stageRealtimeSection}>
+                <div className={styles.stageRealtimeMetric}>
+                    <p className={styles.stageRealtimeLabel}>Số lượng hiện tại</p>
+                    {devices && devices.length > 0 ? (
+                        <div className={styles.deviceQuantitiesList}>
+                            {devices.map((device) => {
+                                const deviceQty = state.deviceQuantities?.[device.deviceId] ?? 0;
+                                const formattedDeviceQty = formatInteger(deviceQty);
+                                return (
+                                    <div key={device.deviceId} className={styles.deviceQuantityRow}>
+                                        <span className={styles.deviceName}>{device.name}</span>
+                                        <div className={styles.deviceQuantityValueContainer}>
+                                            <span className={styles.deviceQuantityValue}>{formattedDeviceQty}</span>
+                                            <span className={styles.deviceQuantityUnit}>viên</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className={styles.stageRealtimeValue}>
+                            <span>{formattedQuantity}</span>
+                            <span className={styles.stageRealtimeUnit}>viên</span>
+                        </div>
+                    )}
                 </div>
-                <div className={styles.stageProgressBar}>
-                    <div className={styles.stageProgressBarFill} style={{ width: `${progressPercent}%` }} />
+                <div className={styles.stageRealtimeMetric}>
+                    <p className={styles.stageRealtimeLabel}>Sản lượng quy đổi</p>
+                    {devices && devices.length > 0 ? (
+                        <div className={styles.deviceQuantitiesList}>
+                            {devices.map((device) => {
+                                const deviceQty = state.deviceQuantities?.[device.deviceId] ?? 0;
+                                const deviceArea = product?.specs?.width && product?.specs?.height && deviceQty > 0
+                                    ? parseFloat(((product.specs.width * product.specs.height / 1000000) * deviceQty).toFixed(2))
+                                    : 0;
+                                const formattedDeviceArea = formatArea(deviceArea);
+                                return (
+                                    <div key={device.deviceId} className={styles.deviceQuantityRow}>
+                                        <span className={styles.deviceName}>{device.name}</span>
+                                        <div className={styles.deviceQuantityValueContainer}>
+                                            <span className={styles.deviceQuantityValue}>{formattedDeviceArea}</span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    ) : (
+                        <div className={styles.stageRealtimeValue}>
+                            <span>{formattedRealtimeArea}</span>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            <div className={styles.stageMetricRow}>
-                <div className={styles.stageMetricItem}>
-                    <span className={styles.stageInfoLabel}>
-                        <Clock size={14} /> Thời gian chạy
-                    </span>
-                    <span className={styles.stageMetricValue}>{runtimeLabel}</span>
+            {/* Stage Total Production Section */}
+            <div className={styles.stageTotalSection}>
+                <div className={styles.stageTotalMetric}>
+                    <p className={styles.stageTotalLabel}>Sản lượng công đoạn</p>
+                    <div className={styles.stageTotalRow}>
+                        <div className={styles.stageTotalItem}>
+                            <span className={styles.stageTotalValue}>{formattedStageTotalQty}</span>
+                            <span className={styles.stageTotalUnit}>viên</span>
+                        </div>
+                        <div className={styles.stageTotalDivider}></div>
+                        <div className={styles.stageTotalItem}>
+                            <span className={styles.stageTotalValue}>{formattedStageTotalArea}</span>
+                        </div>
+                    </div>
                 </div>
-                <div className={styles.stageMetricItem}>
+            </div>
+
+            {/* Start Time & Runtime Section */}
+            <div className={styles.stageTimeSection}>
+                <div className={styles.stageTimeItem}>
                     <span className={styles.stageInfoLabel}>
-                        <Package size={14} /> Sản lượng
+                        <Clock size={14} /> Thời điểm bắt đầu
                     </span>
-                    <span className={styles.stageMetricValue}>
-                        {formattedQuantity} viên · {formattedArea}
-                    </span>
+                    <span className={styles.stageTimeValue}>{startTimeLabel}</span>
                 </div>
-                <div className={styles.stageMetricItem}>
+                <div className={styles.stageTimeItem}>
                     <span className={styles.stageInfoLabel}>
-                        <RefreshCw size={14} /> Tốc độ
+                        <Clock size={14} /> Đã chạy được
                     </span>
-                    <span className={styles.stageMetricValue}>{speedValue}</span>
+                    <span className={styles.stageTimeValue}>{runningTime}</span>
                 </div>
             </div>
 
