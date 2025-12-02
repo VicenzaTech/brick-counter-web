@@ -9,7 +9,6 @@ import TabItem from '@/components/TabItem/TabItem';
 import { Dialog } from '@/components/Dialog/Dialog';
 import LineSettingsSection from '@/components/LineSettingsSection/LineSettingsSection';
 import DeviceDashboardSidebar from '@/components/DeviceDashboardSidebar/DeviceDashboardSidebar';
-import { useDeviceDashboardWebSocket } from '@/hooks/useDeviceDashboardWebSocket';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import DeviceClusterSection from '@/components/DeviceClusterSection/DeviceClusterSection';
 import MeasurementTypeSection from '@/components/MeasurementTypeSection/MeasurementTypeSection';

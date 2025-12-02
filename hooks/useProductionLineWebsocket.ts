@@ -86,8 +86,6 @@ export function useProductionLineSockets(
                 console.error(`[WS][${clusterCode}] connect error:`, err.message);
             });
 
-
-
             socketsRef.current.set(clusterCode, socket);
         });
 
