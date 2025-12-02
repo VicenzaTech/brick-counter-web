@@ -13,6 +13,12 @@ interface Product {
   id: number;
   name: string;
   code: string;
+  specs?: {
+    width?: number;
+    height?: number;
+    thickness?: number;
+    type?: string;
+  };
 }
 
 interface FactoryData {
@@ -123,7 +129,6 @@ export default function ProductionTracker() {
   const fetchStagesForLine = async (lineId: number) => {
     try {
       const { accessToken } = useAuthStore.getState();
-      console.log(accessToken)
       const response = await fetch(
         `http://localhost:5555/api/production-stages/by-production-line-id/${lineId}`,
         {
@@ -140,7 +145,6 @@ export default function ProductionTracker() {
       }
 
       const stages = await response.json();
-      console.log('Fetched stages:', stages); // Debug log
       // Store the stages data with their IDs
       setStagesData(prev => ({
         ...prev,
@@ -198,7 +202,6 @@ export default function ProductionTracker() {
         }
       });
       const data = await response.json();
-      console.log(data)
       setProducts(data as Product[]);
     } catch (error) {
       console.error('Error fetching brick types:', error);
@@ -284,21 +287,32 @@ export default function ProductionTracker() {
       const startTime = new Date().toISOString();
 
       // Your existing API call to update status
+      console.log('🚀 Starting production - calling API...', {
+        productionLineId: lineId,
+        stageName: stageName,
+        status: 'running',
+        productId: state.productId
+      });
+      
       const response = await fetch('http://localhost:5555/api/production-stages/update-status', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
           productionLineId: lineId,
           stageName: stageName,
           status: 'running',
-          startTime: startTime,
           productId: state.productId
         }),
       });
 
+      console.log('📡 API response:', response.status, response.ok);
+
       if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API error:', errorData);
         throw new Error('Failed to update production stage');
       }
 
@@ -307,6 +321,7 @@ export default function ProductionTracker() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
         },
         body: JSON.stringify({
           stageId: stage.id, // Use the actual stage ID
@@ -449,11 +464,88 @@ export default function ProductionTracker() {
     const state = getStageState(lineId, stage);
     try {
       setProcessingStage(stage);
-      // Giả lập số lượng và diện tích
-      const qty = Math.floor(Math.random() * 500) + 800;
-      const area = parseFloat((qty / 11).toFixed(2));
 
-      // Gọi API cập nhật trạng thái về 'pending' (chốt sản lượng)
+      // Tìm stageId từ stagesData
+      const stageObj = stagesData[lineId]?.find(s => s.name === stage);
+      const stageId = stageObj?.id;
+
+      if (!stageId) {
+        throw new Error('Stage ID not found');
+      }
+
+      console.log('📊 Getting final production count from API...');
+      
+      // Gọi API để lấy số liệu thực tế từ measurement cuối cùng
+      const finalCountResponse = await fetch(`http://localhost:5555/api/production-stages/${stageId}/final-count`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        }
+      });
+
+      if (!finalCountResponse.ok) {
+        throw new Error('Failed to get final production count');
+      }
+
+      const finalCountData = await finalCountResponse.json();
+      console.log('📊 Final count data:', finalCountData);
+
+      // Sử dụng total từ API thay vì random
+      const qty = finalCountData.total || 0;
+      
+      // Tính diện tích dựa trên specs của product
+      const product = products.find(p => p.id === state.productId);
+      let area = 0;
+      if (product?.specs?.width && product?.specs?.height) {
+        // Chuyển mm sang m² (width * height / 1,000,000)
+        const areaPerTile = (product.specs.width * product.specs.height) / 1000000;
+        area = parseFloat((qty * areaPerTile).toFixed(2));
+      } else {
+        // Fallback: sử dụng tính toán cũ
+        area = parseFloat((qty / 11).toFixed(2));
+      }
+
+      console.log(`✅ Using actual count: ${qty} viên (${area} m²) from devices: ${finalCountData.deviceId}`);
+
+      // Gọi API cập nhật production stage history gần nhất (cập nhật endTime, quantity, area, stopReason, notes, created_by_username)
+      console.log("STAGE ID FOR LOGGING:", stageId, state.productId)
+      if (stageId && state.productId) {
+        // endTime là thời điểm hiện tại
+        const endTime = new Date().toISOString();
+        // stopReason: chuyển đổi dòng gạch hoặc dừng sự cố
+        let stopReason = state.stopReason || 'change_product';
+        if (state.isEmergency) stopReason = 'machine_error';
+        console.log("RUNNING UPDATE LATEST~~~~~~~~~~~~~~~~~", JSON.stringify({
+            stageId: stageId,
+            productId: state.productId,
+            endTime: endTime,
+            quantity: qty,
+            area: area,
+            stopReason: stopReason,
+            notes: `Chốt từ thiết bị: ${finalCountData.deviceId}`,
+            createdByUsername: 'fake_user'
+          }))
+        await fetch(`http://localhost:5555/api/production-stage-history/update-latest`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify({
+            stageId: stageId,
+            productId: state.productId,
+            endTime: endTime,
+            quantity: qty,
+            area: area,
+            stopReason: stopReason,
+            notes: `Chốt từ thiết bị: ${finalCountData.deviceId}`,
+            createdByUsername: 'fake_user'
+          })
+        });
+      }
+
+      // Gọi API cập nhật trạng thái về 'pending' (chốt sản lượng) - ĐẶT CUỐI CÙNG
       const response = await fetch('http://localhost:5555/api/production-stages/update-status', {
         method: 'POST',
         headers: {
@@ -474,36 +566,6 @@ export default function ProductionTracker() {
         throw new Error('Failed to update production stage status');
       }
 
-      // Tìm stageId từ stagesData
-      const stageObj = stagesData[lineId]?.find(s => s.name === stage);
-      const stageId = stageObj?.id;
-
-      // Gọi API cập nhật production stage history gần nhất (cập nhật endTime, quantity, area, stopReason, notes, created_by_username)
-      if (stageId && state.productId) {
-        // endTime là thời điểm hiện tại
-        const endTime = new Date().toISOString();
-        // stopReason: chuyển đổi dòng gạch hoặc dừng sự cố
-        let stopReason = state.stopReason || 'change_product';
-        if (state.isEmergency) stopReason = 'machine_error';
-        await fetch(`http://localhost:5555/api/production-stage-history/update-latest`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`
-          },
-          body: JSON.stringify({
-            stageId: stageId,
-            productId: state.productId,
-            endTime: endTime,
-            quantity: qty,
-            area: area,
-            stopReason: stopReason,
-            notes: 'Fake note',
-            created_by_username: 'fake_user'
-          })
-        });
-      }
-
       // Update local state only after successful API call
       updateStageState(lineId, stage, {
         status: 'pending',
@@ -514,7 +576,8 @@ export default function ProductionTracker() {
         isEmergency: false
       });
       showToast(`Đã chốt sản lượng công đoạn ${stage}: ${qty.toLocaleString()} viên (${area} m²)`, 'success');
-    } catch {
+    } catch (error) {
+      console.error('❌ Error in logProduction:', error);
       showToast('Lỗi khi chốt sản lượng!', 'error');
     } finally {
       setProcessingStage(null);
@@ -714,7 +777,6 @@ export default function ProductionTracker() {
       <div className={styles.stagesGrid}>
         {(currentLine?.stages || []).map((stage: string, index: number) => {
           const state = getStageState(selectedLine ?? 0, stage);
-          console.log(state)
           const product = products.find(p => p.id === state.productId);
           const runningTime = getRunningTime(state.startTime);
 
@@ -744,12 +806,32 @@ export default function ProductionTracker() {
               {state.status === 'pending' && (
                 <div className={styles.buttonContainer}>
                   {/* Hiển thị kết quả lần chốt gần nhất */}
-                  {state.quantity && state.area && (
-                    <div className={styles.resultBox}>
-                      <p className={styles.resultTitle}>Kết quả lần chốt gần nhất</p>
-                      <p className={styles.resultValue}>{state.quantity.toLocaleString()} viên ({state.area} m²)</p>
-                    </div>
-                  )}
+                  {state.quantity && state.area && (() => {
+                    const lastProduct = products.find(p => p.id === state.productId);
+                    const tileSize = lastProduct?.specs?.width && lastProduct?.specs?.height 
+                      ? `${lastProduct.specs.width}×${lastProduct.specs.height}mm`
+                      : '';
+                    return (
+                      <div className={styles.resultBox}>
+                        <p className={styles.resultTitle}>📊 Kết quả lần chốt gần nhất</p>
+                        {lastProduct && (
+                          <p className={styles.resultProduct}>
+                            {lastProduct.name} {tileSize && `(${tileSize})`}
+                          </p>
+                        )}
+                        <div className={styles.resultMetrics}>
+                          <div className={styles.resultMetricItem}>
+                            <span className={styles.metricLabel}>Số lượng:</span>
+                            <span className={styles.metricValue}>{state.quantity.toLocaleString()} viên</span>
+                          </div>
+                          <div className={styles.resultMetricItem}>
+                            <span className={styles.metricLabel}>Diện tích:</span>
+                            <span className={styles.metricValue}>{state.area.toLocaleString()} m²</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div className={styles.formGroup}>
                     <label className={styles.label}>

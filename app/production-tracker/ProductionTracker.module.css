@@ -550,3 +550,139 @@ body {
 .modalWarningIcon { color: #ff9800; }
 .modalSuccessIcon { color: #4caf50; }
 .modalInfoIcon { color: #2196f3; }
+
+/* Result Box - Hiển thị kết quả chốt sản lượng */
+.resultBox {
+  background: linear-gradient(135deg, #ffffff 0%, #f0f9ff 100%);
+  border: 2px solid #0ea5e9;
+  border-radius: 1.25rem;
+  padding: 1.75rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 10px 25px -5px rgba(14, 165, 233, 0.2), 0 4px 10px -2px rgba(14, 165, 233, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.resultBox::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #0ea5e9 0%, #06b6d4 50%, #0ea5e9 100%);
+  animation: shimmer 2s linear infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: -100% 0; }
+  100% { background-position: 100% 0; }
+}
+
+.resultTitle {
+  margin: 0 0 0.75rem 0;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #0369a1;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.resultTitle::before {
+  content: '📊';
+  font-size: 1.25rem;
+}
+
+.resultProduct {
+  margin: 0 0 1.25rem 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0c4a6e;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 0.75rem;
+  border-left: 4px solid #0ea5e9;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.resultMetrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.resultMetricItem {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(240, 249, 255, 0.9) 100%);
+  padding: 1.25rem;
+  border-radius: 1rem;
+  border: 2px solid #bae6fd;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.resultMetricItem:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 12px -2px rgba(14, 165, 233, 0.2);
+  border-color: #0ea5e9;
+}
+
+.resultMetricItem::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #0ea5e9, #06b6d4);
+  border-radius: 1rem 1rem 0 0;
+}
+
+.metricLabel {
+  display: block;
+  font-size: 0.75rem;
+  color: #64748b;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metricValue {
+  display: block;
+  font-size: 1.75rem;
+  font-weight: 800;
+  color: #0c4a6e;
+  line-height: 1.2;
+  background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+@media (max-width: 768px) {
+  .resultBox {
+    padding: 1.25rem;
+  }
+
+  .resultMetrics {
+    grid-template-columns: 1fr;
+    gap: 0.875rem;
+  }
+
+  .resultMetricItem {
+    padding: 1rem;
+  }
+
+  .metricValue {
+    font-size: 1.5rem;
+  }
+
+  .resultProduct {
+    font-size: 1rem;
+    padding: 0.625rem 0.875rem;
+  }
+}
