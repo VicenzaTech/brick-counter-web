@@ -38,11 +38,19 @@ async function callRefresh() {
                 });
             }
         } catch {
-            // ignore JSON parse errors
+
         }
     }
 
     return res;
+}
+
+async function forceLogout() {
+    const logout = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/forceLogout`, {
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify({ force: true }),
+    });
 }
 
 export async function apiFetch(
@@ -54,7 +62,6 @@ export async function apiFetch(
         ? input
         : `${process.env.NEXT_PUBLIC_API_BASE_URL}${input}`;
 
-    // Merge headers từ init và chỉ thêm Authorization nếu có token
     const headers: Record<string, string> = {};
 
     if (init?.headers instanceof Headers) {
@@ -82,6 +89,7 @@ export async function apiFetch(
     if (res.status !== 401) return res;
 
     if (init?.retry) {
+        await forceLogout()
         if (typeof window !== "undefined") {
             const { clearAuth } = useAuthStore.getState();
             clearAuth();
@@ -102,6 +110,7 @@ export async function apiFetch(
                 window.location.href = '/auth';
             }
         }
+
         return res;
     }
 

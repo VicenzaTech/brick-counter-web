@@ -87,7 +87,6 @@ export function AuthProvider({
                     return;
                 }
 
-                // /api/auth/me chỉ trả user, accessToken đã được refresh (nếu cần) trong apiFetch
                 setAuth({
                     user: json.user,
                 });
@@ -101,7 +100,6 @@ export function AuthProvider({
             }
         }
 
-        // Không có initialUser và cũng không có user trong store => fetch session từ backend
         fetchSession();
 
         return () => {

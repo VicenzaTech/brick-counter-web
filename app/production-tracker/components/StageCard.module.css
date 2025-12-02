@@ -1,0 +1,28 @@
+.runningInformation {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.infoSummaries {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.infoTitle {
+  font-weight: 600;
+  font-size: 1.05rem;
+}
+.infoDescription {
+  font-weight: 400;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 728px) {
+  .infoTitle {
+    font-size: 1.2rem;
+  }
+  .infoDescription {
+    font-size: 1rem;
+  }
+}
