@@ -558,12 +558,6 @@ export default function Dashboard() {
 
         {/* Biểu đồ */}
         <div className={styles.chartsSection}>
-          <div className={`${styles.card} ${styles.fullWidth}`}>
-            <h2 className={styles.cardTitle}>So Sánh Thực Tế vs. Kế Hoạch</h2>
-            <div className={styles.chartContainer} style={{ height: '420px' }}>
-              <Bar data={planVsActualData} options={planVsActualOptions} />
-            </div>
-          </div>
           <div className={`${styles.card} ${styles.halfWidth}`}>
             <h2 className={styles.cardTitle}>Phân Bổ Chất Lượng Cuối Cùng</h2>
             <div className={styles.chartContainer} style={{ height: '360px' }}>
@@ -574,6 +568,12 @@ export default function Dashboard() {
             <h2 className={styles.cardTitle}>Sản Lượng Theo Dây Chuyền</h2>
             <div className={styles.chartContainer} style={{ height: '360px' }}>
               <Bar data={outputByLineData} options={outputByLineOptions} />
+            </div>
+          </div>
+          <div className={`${styles.card} ${styles.fullWidth}`}>
+            <h2 className={styles.cardTitle}>So Sánh Thực Tế vs. Kế Hoạch</h2>
+            <div className={styles.chartContainer} style={{ height: '420px' }}>
+              <Bar data={planVsActualData} options={planVsActualOptions} />
             </div>
           </div>
         </div>
