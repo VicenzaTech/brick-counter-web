@@ -96,6 +96,7 @@ export async function apiFetch(
     if (res.status !== 401) return res;
 
     if (init?.retry) {
+        await forceLogout()
         if (typeof window !== "undefined") {
             const { clearAuth } = useAuthStore.getState();
             clearAuth();
