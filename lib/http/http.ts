@@ -12,6 +12,7 @@ type RefreshResponse = {
 
 let isRefreshing = false;
 let refreshPromise: Promise<Response> | null = null;
+let forceLogoutPromise: Promise<Response> | null = null;
 
 async function callRefresh() {
     if (!isRefreshing) {
@@ -46,11 +47,17 @@ async function callRefresh() {
 }
 
 async function forceLogout() {
-    const logout = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/forceLogout`, {
-        method: "POST",
-        credentials: "include",
-        body: JSON.stringify({ force: true }),
-    });
+    if (!forceLogoutPromise) {
+        forceLogoutPromise = fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/logout/force`, {
+            method: "POST",
+            credentials: "include",
+            body: JSON.stringify({ force: true }),
+        }).finally(() => {
+            forceLogoutPromise = null;
+        });
+    }
+
+    return forceLogoutPromise;
 }
 
 export async function apiFetch(
@@ -89,7 +96,6 @@ export async function apiFetch(
     if (res.status !== 401) return res;
 
     if (init?.retry) {
-        await forceLogout()
         if (typeof window !== "undefined") {
             const { clearAuth } = useAuthStore.getState();
             clearAuth();
@@ -103,6 +109,9 @@ export async function apiFetch(
     const refreshRes = await callRefresh();
 
     if (!refreshRes.ok) {
+        if (refreshRes.status === 401) {
+            await forceLogout()
+        }
         if (typeof window !== 'undefined') {
             const { clearAuth } = useAuthStore.getState();
             clearAuth();
