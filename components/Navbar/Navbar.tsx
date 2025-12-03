@@ -26,6 +26,11 @@ const navItems = [
         label: 'Tổng quan',
     },
     {
+        href: '/production-history',
+        icon: BarChart2,
+        label: 'Lịch sử sản xuất',
+    },
+    {
         href: '/production-tracker',
         icon: BrickWall,
         label: 'Theo dõi sản xuất',
