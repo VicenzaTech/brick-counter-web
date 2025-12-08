@@ -104,12 +104,21 @@ function formatDate(dateStr?: string | null) {
   return d.toLocaleDateString('vi-VN');
 }
 
+// Fake sản lượng từ đầu năm tới giờ (tính theo tháng đã trôi qua trong năm)
+function getYearToDateProduction(brickId: number): number {
+  const currentMonth = new Date().getMonth(); // 0-11
+  const baseMonthly = 8000 + (brickId % 7) * 1500; // Sản lượng trung bình mỗi tháng
+  const variance = (brickId * 317) % 1000; // Biến động ngẫu nhiên
+  return Math.floor(baseMonthly * (currentMonth + 1) + variance);
+}
+
 function getMockMonthlySeries(brickId: number) {
   const base = 40 + (brickId % 5) * 8;
   const labels = ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'];
+  const currentMonth = new Date().getMonth();
   const months = labels.map((label, index) => ({
     label,
-    value: base + ((index * 7 + brickId * 3) % 30),
+    value: index <= currentMonth ? base + ((index * 7 + brickId * 3) % 30) : 0,
   }));
   const max = Math.max(...months.map((m) => m.value)) || 1;
   return { months, max };
@@ -188,7 +197,12 @@ export default function BrickTypesPage() {
       setSelectedBrickId(null);
       return;
     }
-    if (selectedBrickId === null || !filteredBrickTypes.some((b) => b.id === selectedBrickId)) {
+    // Auto-select first brick on initial load
+    if (selectedBrickId === null) {
+      setSelectedBrickId(filteredBrickTypes[0].id);
+    }
+    // If selected brick is filtered out, select first available
+    else if (!filteredBrickTypes.some((b) => b.id === selectedBrickId)) {
       setSelectedBrickId(filteredBrickTypes[0].id);
     }
   }, [filteredBrickTypes, selectedBrickId]);
@@ -466,6 +480,12 @@ export default function BrickTypesPage() {
                     </div>
                     <MockProductionChart brickId={selectedBrick.id} mode={chartMode} />
                   </section>
+
+                  {/* Line Chart cho single brick */}
+                  <section className={styles.chartCard}>
+                    <h3>Xu hướng sản lượng theo thời gian</h3>
+                    <MockLineChart brickId={selectedBrick.id} mode={chartMode} />
+                  </section>
                 </>
               ) : (
                 <div className={styles.emptyDetail}>
@@ -521,13 +541,13 @@ function ComparePanel({ brickIds, brickTypes, chartMode, setChartMode, onExit }:
       {/* Bảng so sánh */}
       <div className={styles.summaryCard}>
         <h3>So sánh chỉ số chính</h3>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88rem' }}>
+        <div className={styles.tableWrapper}>
+          <table className={styles.compareTable}>
             <thead>
-              <tr style={{ background: '#f8fafc' }}>
-                <th style={{ textAlign: 'left', padding: '0.75rem 1rem', borderBottom: '2px solid #e5e7eb' }}>Chỉ số</th>
+              <tr>
+                <th>Chỉ số</th>
                 {bricksToCompare.map(b => (
-                  <th key={b.id} style={{ textAlign: 'center', padding: '0.75rem 1rem', borderBottom: '2px solid #e5e7eb', color: '#1e293b' }}>{b.name}</th>
+                  <th key={b.id}>{b.name}</th>
                 ))}
               </tr>
             </thead>
@@ -540,19 +560,26 @@ function ComparePanel({ brickIds, brickTypes, chartMode, setChartMode, onExit }:
                 { label: 'SL chính phẩm (m²)', key: 'qualityProductOutput', format: formatNumber },
               ].map(row => (
                 <tr key={row.label}>
-                  <td style={{ padding: '0.75rem 1rem', fontWeight: 500, background: '#f9fafb' }}>{row.label}</td>
+                  <td className={styles.compareTableLabel}>{row.label}</td>
                   {bricksToCompare.map(b => (
-                    <td key={b.id} style={{ textAlign: 'center', padding: '0.75rem 1rem' }}>
+                    <td key={b.id}>
                       {row.format ? row.format((b as any)[row.key as keyof BrickType]) : (b as any)[row.key as keyof BrickType] || '-'}
                     </td>
                   ))}
                 </tr>
               ))}
               <tr>
-                <td style={{ padding: '0.75rem 1rem', fontWeight: 500, background: '#f9fafb' }}>Tỷ lệ chính phẩm</td>
+                <td className={styles.compareTableLabel}>Tỷ lệ chính phẩm</td>
                 {bricksToCompare.map(b => {
                   const ratio = b.kilnOutput && b.qualityProductOutput ? (b.qualityProductOutput / b.kilnOutput * 100).toFixed(1) : '-';
-                  return <td key={b.id} style={{ textAlign: 'center', padding: '0.75rem 1rem', color: ratio !== '-' && Number(ratio) >= 95 ? '#16a34a' : '#dc2626' }}>{ratio}%</td>;
+                  return <td key={b.id} className={ratio !== '-' && Number(ratio) >= 95 ? styles.ratioGood : styles.ratioBad}>{ratio}%</td>;
+                })}
+              </tr>
+              <tr className={styles.productionYTDRow}>
+                <td className={styles.compareTableLabel}>Sản lượng từ đầu năm</td>
+                {bricksToCompare.map(b => {
+                  const ytd = getYearToDateProduction(b.id);
+                  return <td key={b.id} className={styles.productionYTD}>{formatNumber(ytd)} m²</td>;
                 })}
               </tr>
             </tbody>
@@ -570,48 +597,197 @@ function ComparePanel({ brickIds, brickTypes, chartMode, setChartMode, onExit }:
           </select>
         </div>
         <div className={styles.chartWrapper}>
-          <div className={styles.chartBars} style={{ gap: '1rem' }}>
-            {(chartMode === 'month' ? Array.from({ length: 12 }, (_, i) => i) : Array.from({ length: 7 }, (_, i) => i)).map(idx => (
-              <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', flex: 1 }}>
-                <div style={{ display: 'flex', gap: '4px', height: '150px', alignItems: 'flex-end', width: '100%' }}>
-                  {bricksToCompare.map((brick, i) => {
-                    const series = chartMode === 'month' ? getMockMonthlySeries(brick.id) : getMockDailySeries(brick.id);
-                    const value = chartMode === 'month' ? series.months[idx]?.value : series.days[idx]?.value || 0;
-                    const max = chartMode === 'month' ? series.max : series.max;
-                    const height = max ? (value / max) * 100 : 0;
-                    return (
-                      <div
-                        key={brick.id}
-                        title={`${brick.name}: ${value}`}
-                        style={{
-                          flex: 1,
-                          background: colors[i % colors.length],
-                          borderRadius: '999px',
-                          height: `${height}%`,
-                          minHeight: '4px',
-                          transition: 'height 0.3s ease',
-                        }}
-                      />
-                    );
-                  })}
+          {(() => {
+            const maxValue = Math.max(
+              ...bricksToCompare.flatMap(brick => {
+                const seriesData = chartMode === 'month' ? getMockMonthlySeries(brick.id) : getMockDailySeries(brick.id);
+                const dataArray = chartMode === 'month' ? (seriesData as ReturnType<typeof getMockMonthlySeries>).months : (seriesData as ReturnType<typeof getMockDailySeries>).days;
+                return dataArray.map(d => d.value);
+              })
+            );
+            const yAxisSteps = 5;
+            const stepValue = Math.ceil(maxValue / yAxisSteps / 1000) * 1000;
+            
+            return (
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                {/* Y-axis */}
+                <div className={styles.chartYAxis}>
+                  {Array.from({ length: yAxisSteps + 1 }, (_, i) => yAxisSteps - i).map(step => (
+                    <div key={step} className={styles.yAxisLabel}>
+                      {formatNumber(step * stepValue)}
+                    </div>
+                  ))}
                 </div>
-                <span className={styles.chartBarLabel}>
-                  {chartMode === 'month' ? `Th${idx + 1}` : ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][idx]}
-                </span>
-              </div>
-            ))}
-          </div>
 
-          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '1rem', marginTop: '1.5rem' }}>
+                {/* Chart bars */}
+                <div className={styles.chartBarsContainer}>
+                  <div className={styles.chartBars}>
+                    {(chartMode === 'month' ? Array.from({ length: 12 }, (_, i) => i) : Array.from({ length: 7 }, (_, i) => i)).map(idx => (
+                      <div key={idx} className={styles.chartBarItem}>
+                        <div className={styles.chartBarTrack}>
+                          <div style={{ display: 'flex', gap: '3px', height: '100%', alignItems: 'flex-end', width: '100%', justifyContent: 'center' }}>
+                            {bricksToCompare.map((brick, i) => {
+                              const seriesData = chartMode === 'month' ? getMockMonthlySeries(brick.id) : getMockDailySeries(brick.id);
+                              const dataArray = chartMode === 'month' ? (seriesData as ReturnType<typeof getMockMonthlySeries>).months : (seriesData as ReturnType<typeof getMockDailySeries>).days;
+                              const value = dataArray[idx]?.value || 0;
+                              const height = maxValue ? (value / maxValue) * 100 : 0;
+                              return (
+                                <div
+                                  key={brick.id}
+                                  title={`${brick.name}: ${value.toLocaleString()} m²`}
+                                  style={{
+                                    flex: 1,
+                                    maxWidth: '20px',
+                                    background: colors[i % colors.length],
+                                    borderRadius: '4px 4px 0 0',
+                                    height: `${height}%`,
+                                    minHeight: '4px',
+                                    transition: 'all 0.3s ease',
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                        <span className={styles.chartBarLabel}>
+                          {chartMode === 'month' ? `Th${idx + 1}` : ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][idx]}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
+          <div className={styles.chartLegend}>
             {bricksToCompare.map((b, i) => (
-              <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
-                <div style={{ width: '14px', height: '14px', background: colors[i % colors.length], borderRadius: '4px' }} />
+              <div key={b.id} className={styles.chartLegendItem}>
+                <div className={styles.chartLegendColor} style={{ background: colors[i % colors.length] }} />
                 <span>{b.name}</span>
+                <span className={styles.chartLegendValue}>({formatNumber(getYearToDateProduction(b.id))} m²)</span>
               </div>
             ))}
           </div>
         </div>
       </section>
+
+      {/* Line Charts - Xu hướng từng dạng gạch */}
+      <div className={styles.lineChartsGrid}>
+        {bricksToCompare.map((brick, brickIndex) => {
+          const seriesData = chartMode === 'month' ? getMockMonthlySeries(brick.id) : getMockDailySeries(brick.id);
+          const dataArray = chartMode === 'month' ? (seriesData as ReturnType<typeof getMockMonthlySeries>).months : (seriesData as ReturnType<typeof getMockDailySeries>).days;
+          const maxValue = seriesData.max;
+          const dataLength = dataArray.length;
+          
+          const yAxisSteps = 4;
+          const stepValue = Math.ceil(maxValue / yAxisSteps / 1000) * 1000;
+          
+          return (
+            <section key={brick.id} className={styles.chartCard}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                <div className={styles.chartLegendColor} style={{ background: colors[brickIndex % colors.length], width: '12px', height: '12px', borderRadius: '50%' }} />
+                <h3 style={{ margin: 0 }}>{brick.name}</h3>
+              </div>
+              
+              <div className={styles.chartWrapper}>
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  {/* Y-axis */}
+                  <div className={styles.chartYAxis} style={{ height: '120px', padding: '0.25rem 0' }}>
+                    {Array.from({ length: yAxisSteps + 1 }, (_, i) => yAxisSteps - i).map(step => (
+                      <div key={step} className={styles.yAxisLabel}>
+                        {formatNumber(step * stepValue)}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Line Chart Container */}
+                  <div className={styles.lineChartContainer}>
+                    <svg className={styles.lineChartSvg} viewBox="0 0 600 120" preserveAspectRatio="none" style={{ height: '120px' }}>
+                      {/* Grid lines */}
+                      {Array.from({ length: yAxisSteps + 1 }, (_, i) => (
+                        <line
+                          key={i}
+                          x1="0"
+                          y1={i * (120 / yAxisSteps)}
+                          x2="600"
+                          y2={i * (120 / yAxisSteps)}
+                          stroke="#e5e7eb"
+                          strokeWidth="1"
+                        />
+                      ))}
+                      
+                      {/* Area fill */}
+                      <defs>
+                        <linearGradient id={`gradient-${brick.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                          <stop offset="0%" stopColor={colors[brickIndex % colors.length]} stopOpacity="0.2" />
+                          <stop offset="100%" stopColor={colors[brickIndex % colors.length]} stopOpacity="0.02" />
+                        </linearGradient>
+                      </defs>
+                      
+                      <path
+                        d={`
+                          M 0,120
+                          ${dataArray.map((d, i) => {
+                            const x = (i / (dataLength - 1)) * 600;
+                            const y = 120 - (d.value / maxValue) * 120;
+                            return i === 0 ? `L ${x},${y}` : `L ${x},${y}`;
+                          }).join(' ')}
+                          L 600,120
+                          Z
+                        `}
+                        fill={`url(#gradient-${brick.id})`}
+                      />
+                      
+                      {/* Line */}
+                      <polyline
+                        points={dataArray.map((d, i) => {
+                          const x = (i / (dataLength - 1)) * 600;
+                          const y = 120 - (d.value / maxValue) * 120;
+                          return `${x},${y}`;
+                        }).join(' ')}
+                        fill="none"
+                        stroke={colors[brickIndex % colors.length]}
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      
+                      {/* Points */}
+                      {dataArray.map((d, i) => {
+                        const x = (i / (dataLength - 1)) * 600;
+                        const y = 120 - (d.value / maxValue) * 120;
+                        return (
+                          <circle
+                            key={i}
+                            cx={x}
+                            cy={y}
+                            r="3.5"
+                            fill={colors[brickIndex % colors.length]}
+                            stroke="white"
+                            strokeWidth="2"
+                          >
+                            <title>{d.label}: {d.value.toLocaleString()} m²</title>
+                          </circle>
+                        );
+                      })}
+                    </svg>
+                    
+                    {/* X-axis labels */}
+                    <div className={styles.lineChartXAxis}>
+                      {dataArray.map((d, i) => (
+                        <span key={i} className={styles.xAxisLabel}>
+                          {d.label}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          );
+        })}
+      </div>
     </>
   );
 }
@@ -622,58 +798,163 @@ interface MockChartProps {
 }
 
 function MockProductionChart({ brickId, mode }: MockChartProps) {
-  if (mode === 'month') {
-    const { months, max } = getMockMonthlySeries(brickId);
-
-    return (
-      <div className={styles.chartWrapper}>
-        <div className={styles.chartBars}>
-          {months.map((m, index) => {
-            const heightPercent = (m.value / max) * 100;
-            const isPrimary = index === 3 || index === 4 || index === 5;
-            return (
-              <div key={m.label} className={styles.chartBarItem}>
-                <div className={styles.chartBarTrack}>
-                  <div
-                    className={`${styles.chartBarFill} ${isPrimary
-                      ? styles.chartBarFillPrimary
-                      : styles.chartBarFillMuted
-                      }`}
-                    style={{ height: `${heightPercent}%` }}
-                  />
-                </div>
-                <span className={styles.chartBarLabel}>{m.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  const { days, max } = getMockDailySeries(brickId);
+  const seriesData = mode === 'month' ? getMockMonthlySeries(brickId) : getMockDailySeries(brickId);
+  const dataArray = mode === 'month' ? (seriesData as ReturnType<typeof getMockMonthlySeries>).months : (seriesData as ReturnType<typeof getMockDailySeries>).days;
+  const maxValue = seriesData.max;
+  
+  const yAxisSteps = 5;
+  const stepValue = Math.ceil(maxValue / yAxisSteps / 1000) * 1000;
+  const primaryColor = '#6366f1';
 
   return (
     <div className={styles.chartWrapper}>
-      <div className={styles.chartBars}>
-        {days.map((d, index) => {
-          const heightPercent = (d.value / max) * 100;
-          const isPrimary = index === 2 || index === 3 || index === 4;
-          return (
-            <div key={d.label} className={styles.chartBarItem}>
-              <div className={styles.chartBarTrack}>
-                <div
-                  className={`${styles.chartBarFill} ${isPrimary
-                    ? styles.chartBarFillPrimary
-                    : styles.chartBarFillMuted
-                    }`}
-                  style={{ height: `${heightPercent}%` }}
-                />
-              </div>
-              <span className={styles.chartBarLabel}>{d.label}</span>
+      <div style={{ display: 'flex', gap: '0.75rem' }}>
+        {/* Y-axis */}
+        <div className={styles.chartYAxis}>
+          {Array.from({ length: yAxisSteps + 1 }, (_, i) => yAxisSteps - i).map(step => (
+            <div key={step} className={styles.yAxisLabel}>
+              {formatNumber(step * stepValue)}
             </div>
-          );
-        })}
+          ))}
+        </div>
+
+        {/* Chart bars */}
+        <div className={styles.chartBarsContainer}>
+          <div className={styles.chartBars}>
+            {dataArray.map((item, idx) => {
+              const heightPercent = maxValue ? (item.value / maxValue) * 100 : 0;
+              return (
+                <div key={item.label} className={styles.chartBarItem}>
+                  <div className={styles.chartBarTrack}>
+                    <div style={{ display: 'flex', gap: '3px', height: '100%', alignItems: 'flex-end', width: '100%', justifyContent: 'center' }}>
+                      <div
+                        title={`${item.value.toLocaleString()} m²`}
+                        style={{
+                          flex: 1,
+                          maxWidth: '20px',
+                          background: primaryColor,
+                          borderRadius: '4px 4px 0 0',
+                          height: `${heightPercent}%`,
+                          minHeight: '4px',
+                          transition: 'all 0.3s ease',
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <span className={styles.chartBarLabel}>{item.label}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MockLineChart({ brickId, mode }: MockChartProps) {
+  const seriesData = mode === 'month' ? getMockMonthlySeries(brickId) : getMockDailySeries(brickId);
+  const dataArray = mode === 'month' ? (seriesData as ReturnType<typeof getMockMonthlySeries>).months : (seriesData as ReturnType<typeof getMockDailySeries>).days;
+  const maxValue = seriesData.max;
+  const dataLength = dataArray.length;
+  
+  const yAxisSteps = 4;
+  const stepValue = Math.ceil(maxValue / yAxisSteps / 1000) * 1000;
+  const primaryColor = '#6366f1';
+
+  return (
+    <div className={styles.chartWrapper}>
+      <div style={{ display: 'flex', gap: '0.75rem' }}>
+        {/* Y-axis */}
+        <div className={styles.chartYAxis} style={{ height: '120px', padding: '0.25rem 0' }}>
+          {Array.from({ length: yAxisSteps + 1 }, (_, i) => yAxisSteps - i).map(step => (
+            <div key={step} className={styles.yAxisLabel}>
+              {formatNumber(step * stepValue)}
+            </div>
+          ))}
+        </div>
+
+        {/* Line Chart Container */}
+        <div className={styles.lineChartContainer}>
+          <svg className={styles.lineChartSvg} viewBox="0 0 600 120" preserveAspectRatio="none" style={{ height: '120px' }}>
+            {/* Grid lines */}
+            {Array.from({ length: yAxisSteps + 1 }, (_, i) => (
+              <line
+                key={i}
+                x1="0"
+                y1={i * (120 / yAxisSteps)}
+                x2="600"
+                y2={i * (120 / yAxisSteps)}
+                stroke="#e5e7eb"
+                strokeWidth="1"
+              />
+            ))}
+            
+            {/* Area fill */}
+            <defs>
+              <linearGradient id={`gradient-single-${brickId}`} x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor={primaryColor} stopOpacity="0.2" />
+                <stop offset="100%" stopColor={primaryColor} stopOpacity="0.02" />
+              </linearGradient>
+            </defs>
+            
+            <path
+              d={`
+                M 0,120
+                ${dataArray.map((d, i) => {
+                  const x = (i / (dataLength - 1)) * 600;
+                  const y = 120 - (d.value / maxValue) * 120;
+                  return i === 0 ? `L ${x},${y}` : `L ${x},${y}`;
+                }).join(' ')}
+                L 600,120
+                Z
+              `}
+              fill={`url(#gradient-single-${brickId})`}
+            />
+            
+            {/* Line */}
+            <polyline
+              points={dataArray.map((d, i) => {
+                const x = (i / (dataLength - 1)) * 600;
+                const y = 120 - (d.value / maxValue) * 120;
+                return `${x},${y}`;
+              }).join(' ')}
+              fill="none"
+              stroke={primaryColor}
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            
+            {/* Points */}
+            {dataArray.map((d, i) => {
+              const x = (i / (dataLength - 1)) * 600;
+              const y = 120 - (d.value / maxValue) * 120;
+              return (
+                <circle
+                  key={i}
+                  cx={x}
+                  cy={y}
+                  r="3.5"
+                  fill={primaryColor}
+                  stroke="white"
+                  strokeWidth="2"
+                >
+                  <title>{d.label}: {d.value.toLocaleString()} m²</title>
+                </circle>
+              );
+            })}
+          </svg>
+          
+          {/* X-axis labels */}
+          <div className={styles.lineChartXAxis}>
+            {dataArray.map((d, i) => (
+              <span key={i} className={styles.xAxisLabel}>
+                {d.label}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   );

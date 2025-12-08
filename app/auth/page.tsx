@@ -38,9 +38,9 @@ export default function Page() {
         try {
             setLoginError(null);
 
-            // const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
-            const baseUrl = 'https://api.vicenzatech.online/api'
-            console.log(baseUrl);
+            const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+            // const baseUrl = 'https://api.vicenzatech.online/api'
+            // console.log(baseUrl);
             const loginResult = await fetch(`${baseUrl}/auth/login`, {
                 method: 'POST',
                 credentials: 'include',
