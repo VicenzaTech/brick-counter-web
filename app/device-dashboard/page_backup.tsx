@@ -42,7 +42,7 @@ export default function DeviceDashboardPage() {
   // WebSocket connection với NestJS backend
   const { devices, setDevices, isConnected } = useDeviceDashboardWebSocket(INITIAL_DEVICES, {
     enabled: true, // ✅ Bật WebSocket để kết nối với NestJS backend
-    baseUrl: 'http://localhost:5555', // NestJS Socket.IO server
+    baseUrl: process, // NestJS Socket.IO server
   });
   
   const [device1, setDevice1] = useState<string>('');

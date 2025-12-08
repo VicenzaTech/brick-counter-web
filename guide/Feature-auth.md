@@ -119,7 +119,7 @@ export async function apiFetch(
    - Gọi `callRefresh()`:
 
      ```ts
-     POST ${NEXT_PUBLIC_API_BASE_URL}/api/auth/refresh
+     POST ${NEXT_PUBLIC_API_URL}/api/auth/refresh
      ```
 
    - Nếu refresh **thành công** (`res.ok`):

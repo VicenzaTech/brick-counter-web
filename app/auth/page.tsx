@@ -38,9 +38,10 @@ export default function Page() {
         try {
             setLoginError(null);
 
-            const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
-
-            const loginResult = await fetch(`${baseUrl}/api/auth/login`, {
+            // const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
+            const baseUrl = 'https://api.vicenzatech.online/api'
+            console.log(baseUrl);
+            const loginResult = await fetch(`${baseUrl}/auth/login`, {
                 method: 'POST',
                 credentials: 'include',
                 body: JSON.stringify(values),
@@ -48,6 +49,7 @@ export default function Page() {
                     'Content-Type': 'application/json',
                 },
             });
+            console.log(loginResult);
 
             if (!loginResult.ok) {
                 let message =
@@ -69,12 +71,14 @@ export default function Page() {
                 user?: AuthUser;
                 sessionId?: string;
             };
+            console.log(loginData)
 
             const { user, tokens } = loginData;
-
+            console.log(user && tokens?.accessToken)
             if (user && tokens?.accessToken) {
                 setAuth({ user, accessToken: tokens.accessToken });
-                router.push('/device-dashboard');
+                console.log("REDIRECt")
+                router.push('/dashboard');
             } else {
                 setLoginError(
                     'Không nhận được thông tin đăng nhập hợp lệ từ máy chủ.',

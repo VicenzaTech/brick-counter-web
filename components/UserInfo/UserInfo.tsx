@@ -19,18 +19,14 @@ export default function UserInfo({ username, role, mode = 'full' }: Props) {
   const clearAuth = useAuthStore((s) => s.clearAuth);
 
   const handleLogout = async () => {
-    const logoutResult = await apiFetch('/api/auth/logout', {
+    const logoutResult = await apiFetch('/auth/logout', {
       method: 'POST',
     });
     if (!logoutResult.ok) {
       return;
     }
-
-    const logoutData = await logoutResult.json();
-    if (logoutData?.sessionId) {
-      clearAuth();
-      window.location.href = '/auth';
-    }
+    clearAuth();
+    window.location.href = '/auth';
   };
 
   const userInitials = (username || 'U').slice(0, 2);
@@ -40,9 +36,8 @@ export default function UserInfo({ username, role, mode = 'full' }: Props) {
     <>
       <button
         type="button"
-        className={`${styles.userInfo} ${
-          isCompact ? styles.userInfoCompact : styles.userInfoFull
-        }`}
+        className={`${styles.userInfo} ${isCompact ? styles.userInfoCompact : styles.userInfoFull
+          }`}
         onClick={() => setOpen(true)}
       >
         <div className={styles.userAvatar}>{userInitials}</div>

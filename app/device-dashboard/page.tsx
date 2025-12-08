@@ -370,7 +370,7 @@ export function DeviceDashboardPage({
         const fetchProductionLines = async () => {
             try {
                 const response = await apiFetch(
-                    `${API_BASE_URL}/api/production-lines`,
+                    `${API_BASE_URL}/production-lines`,
                 );
                 const json = await response.json();
 

@@ -69,7 +69,7 @@ export function AuthProvider({
         async function fetchSession() {
             setIsLoading(true);
             try {
-                const res = await apiFetch('/api/auth/me', { method: 'GET' });
+                const res = await apiFetch('/auth/me', { method: 'GET' });
 
                 if (!mounted) return;
 

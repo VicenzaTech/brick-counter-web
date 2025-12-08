@@ -178,7 +178,7 @@ async function fetchActivityLogs(
     const { search, dateRange, actionFilter, statusFilter, severityFilter, page, pageSize } =
         params;
 
-    const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || '';
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
     const searchParams = new URLSearchParams();
 
     searchParams.set('page', String(page));
@@ -201,7 +201,7 @@ async function fetchActivityLogs(
         searchParams.set('search', search);
     }
 
-    const url = `${baseUrl}/api/activity-log?${searchParams.toString()}`;
+    const url = `${baseUrl}/activity-log?${searchParams.toString()}`;
 
     const res = await apiFetch(url);
     if (!res.ok) {

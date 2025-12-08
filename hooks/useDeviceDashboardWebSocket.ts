@@ -23,7 +23,7 @@ export function useDeviceDashboardWebSocket(
 ) {
     const {
         enabled = false,
-        baseUrl = 'http://localhost:5555', // NestJS Socket.IO server
+        baseUrl = process.env.NEXT_PUBLIC_API_URL, // NestJS Socket.IO server
         factory = 'factory1',
         line = 'line1',
         onMessage,

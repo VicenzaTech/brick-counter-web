@@ -17,7 +17,7 @@ let forceLogoutPromise: Promise<Response> | null = null;
 async function callRefresh() {
     if (!isRefreshing) {
         isRefreshing = true;
-        refreshPromise = fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/refresh`, {
+        refreshPromise = fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/refresh`, {
             method: "POST",
             credentials: "include",
         });
@@ -48,7 +48,7 @@ async function callRefresh() {
 
 async function forceLogout() {
     if (!forceLogoutPromise) {
-        forceLogoutPromise = fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL}/api/auth/logout/force`, {
+        forceLogoutPromise = fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/logout/force`, {
             method: "POST",
             credentials: "include",
             body: JSON.stringify({ force: true }),
@@ -67,7 +67,7 @@ export async function apiFetch(
     const { accessToken } = useAuthStore.getState();
     const url = input.startsWith('http')
         ? input
-        : `${process.env.NEXT_PUBLIC_API_BASE_URL}${input}`;
+        : `${process.env.NEXT_PUBLIC_API_URL}${input}`;
 
     const headers: Record<string, string> = {};
 

@@ -275,7 +275,7 @@ export default function ProductionTracker() {
     const fetchFactories = async () => {
         try {
             setLoading(true);
-            const response = await apiFetch('/api/workshops');
+            const response = await apiFetch('/workshops');
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -333,7 +333,7 @@ export default function ProductionTracker() {
 
     const fetchStagesForLine = async (lineId: number) => {
         try {
-            const response = await apiFetch(`/api/production-stages/by-production-line-id/${lineId}`);
+            const response = await apiFetch(`/production-stages/by-production-line-id/${lineId}`);
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -409,7 +409,7 @@ export default function ProductionTracker() {
 
     const fetchStageHistoryForLine = async (lineId: number) => {
         try {
-            const response = await apiFetch(`/api/production-stage-history/by-production-line/${lineId}`);
+            const response = await apiFetch(`/production-stage-history/by-production-line/${lineId}`);
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -532,7 +532,7 @@ export default function ProductionTracker() {
 
     const fetchProducts = async () => {
         try {
-            const response = await apiFetch('/api/brick-types');
+            const response = await apiFetch('/brick-types');
             const data = await response.json();
             setProducts(data as Product[]);
         } catch (error) {
@@ -690,7 +690,7 @@ export default function ProductionTracker() {
             }
 
             const startTime = new Date().toISOString();
-            const response = await apiFetch('/api/production-stages/update-status', {
+            const response = await apiFetch('/production-stages/update-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -741,7 +741,7 @@ export default function ProductionTracker() {
                     stopActionRef.current.reason ??
                     (isEmergency ? StopReason.MACHINE_ERROR : StopReason.CHANGE_PRODUCT);
 
-                const response = await apiFetch('/api/production-stages/update-status', {
+                const response = await apiFetch('/production-stages/update-status', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -781,7 +781,7 @@ export default function ProductionTracker() {
     const resumeProduction = async (lineId: number, stage: string) => {
         try {
             setProcessingStage(stage)
-            const response = await apiFetch('/api/production-stages/update-status', {
+            const response = await apiFetch('/production-stages/update-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -829,7 +829,7 @@ export default function ProductionTracker() {
             }
 
             // Gọi API cập nhật trạng thái về 'pending' (chốt sản lượng) - ĐẶT CUỐI CÙNG
-            const response = await apiFetch('/api/production-stages/update-status', {
+            const response = await apiFetch('/production-stages/update-status', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

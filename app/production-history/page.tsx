@@ -70,7 +70,7 @@ interface ProductionHistory {
     dataSource?: string;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:5555';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5555';
 const PAGE_SIZE = 50;
 
 const DATE_FILTER_LABELS: Record<DateFilter, string> = {
@@ -179,7 +179,7 @@ export default function ProductionHistoryPage() {
 
         const fetchProductionLines = async () => {
             try {
-                const res = await apiFetch(`${API_BASE_URL}/api/production-lines`);
+                const res = await apiFetch(`${API_BASE_URL}/production-lines`);
                 if (!res.ok) throw new Error('Failed to fetch production lines');
                 const json = await res.json();
                 if (!mounted) return;
@@ -191,7 +191,7 @@ export default function ProductionHistoryPage() {
 
         const fetchBrickTypes = async () => {
             try {
-                const res = await apiFetch(`${API_BASE_URL}/api/brick-types`);
+                const res = await apiFetch(`${API_BASE_URL}/brick-types`);
                 if (!res.ok) throw new Error('Failed to fetch brick types');
                 const json = await res.json();
                 if (!mounted) return;
@@ -232,7 +232,7 @@ export default function ProductionHistoryPage() {
                 params.set('limit', PAGE_SIZE.toString());
 
                 const query = params.toString();
-                const url = `${API_BASE_URL}/api/production-line-runs${query ? `?${query}` : ''}`;
+                const url = `${API_BASE_URL}/production-line-runs${query ? `?${query}` : ''}`;
 
                 const res = await apiFetch(url, { signal: controller.signal });
                 if (!res.ok) {
