@@ -9,6 +9,7 @@ import { Button } from '@/components/Button/Button';
 import { AuthUser, useAuthStore } from '@/store/auth.store';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { apiFetch } from '@/lib/http/http';
 
 interface LoginFormValues {
     identifier: string;
@@ -38,12 +39,9 @@ export default function Page() {
         try {
             setLoginError(null);
 
-            // const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? '';
-            const baseUrl = 'https://api.vicenzatech.online/api'
-            console.log(baseUrl);
-            const loginResult = await fetch(`${baseUrl}/auth/login`, {
+   
+            const loginResult = await apiFetch(`/auth/login`, {
                 method: 'POST',
-                credentials: 'include',
                 body: JSON.stringify(values),
                 headers: {
                     'Content-Type': 'application/json',
