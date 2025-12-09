@@ -810,3 +810,341 @@
   background-color: #f9fafb;
   border-color: #e5e7eb;
 }
+
+/* ===== COMPARISON TABLE & CHARTS ===== */
+
+.tableWrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.compareTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+  min-width: 600px;
+}
+
+.compareTable thead tr {
+  background: #f8fafc;
+}
+
+.compareTable th {
+  text-align: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 2px solid #e5e7eb;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+.compareTable th:first-child {
+  text-align: left;
+  position: sticky;
+  left: 0;
+  background: #f8fafc;
+  z-index: 1;
+}
+
+.compareTable tbody tr:hover {
+  background: #f9fafb;
+}
+
+.compareTable td {
+  text-align: center;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.compareTableLabel {
+  text-align: left !important;
+  font-weight: 500;
+  background: #f9fafb;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+
+.ratioGood {
+  color: #16a34a;
+  font-weight: 600;
+}
+
+.ratioBad {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.productionYTDRow {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  font-weight: 600;
+}
+
+.productionYTDRow td {
+  border-top: 2px solid #fbbf24;
+}
+
+.productionYTD {
+  color: #92400e;
+  font-weight: 700;
+}
+
+/* ===== CHART STYLES ===== */
+
+.chartHeaderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.chartCard h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.chartWrapper {
+  margin-top: 1rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 0.5rem;
+}
+
+.chartYAxis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 180px;
+  padding: 0.5rem 0;
+  padding-right: 0.5rem;
+  border-right: 1px solid #e5e7eb;
+}
+
+.yAxisLabel {
+  font-size: 0.7rem;
+  color: #6b7280;
+  text-align: right;
+  min-width: 45px;
+  line-height: 1;
+}
+
+.chartBarsContainer {
+  flex: 1;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chartBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.75rem;
+  height: 180px;
+  min-width: max-content;
+  padding: 0.5rem 0;
+}
+
+.chartBarItem {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 50px;
+}
+
+.chartBarTrack {
+  width: 100%;
+  height: 150px;
+  border-radius: 8px;
+  background-color: #f3f4f6;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  padding: 0.25rem;
+}
+
+.chartBarLabel {
+  font-size: 0.7rem;
+  color: #9ca3af;
+}
+
+.chartLegend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.chartLegendItem {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.chartLegendColor {
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.chartLegendValue {
+  color: #6b7280;
+  font-weight: 500;
+  font-size: 0.85rem;
+}
+
+/* ===== LINE CHARTS ===== */
+
+.lineChartsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.lineChartContainer {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lineChartSvg {
+  width: 100%;
+  height: 180px;
+  min-width: 600px;
+}
+
+.lineChartXAxis {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 0.25rem;
+  min-width: 600px;
+}
+
+.xAxisLabel {
+  font-size: 0.7rem;
+  color: #9ca3af;
+  text-align: center;
+  flex: 1;
+}
+
+/* ===== RESPONSIVE STYLES ===== */
+
+@media (max-width: 768px) {
+  .compareHeaderBar {
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+  
+  .compareHeaderBar > div {
+    display: flex;
+    gap: 0.5rem;
+  }
+  
+  .compareHeaderBar button {
+    flex: 1;
+  }
+
+  .chartHeaderRow {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  
+  .chartHeaderRow h3 {
+    font-size: 0.9rem;
+    margin-bottom: 0;
+    flex-shrink: 0;
+  }
+
+  .chartBars {
+    gap: 0.5rem;
+    min-width: 600px;
+  }
+  
+  .chartBarItem {
+    min-width: 35px;
+  }
+  
+  .chartBarLabel {
+    font-size: 0.65rem;
+  }
+  
+  .chartBarsContainer {
+    margin-left: -1rem;
+    margin-right: -1rem;
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  
+  .yAxisLabel {
+    font-size: 0.65rem;
+    min-width: 40px;
+  }
+
+  .chartLegend {
+    gap: 0.75rem;
+    margin-top: 1rem;
+  }
+  
+  .chartLegendItem {
+    font-size: 0.8rem;
+  }
+  
+  .chartLegendValue {
+    font-size: 0.75rem;
+  }
+
+  .detailHeader {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: flex-start !important;
+  }
+  
+  .detailActions {
+    width: 100%;
+    justify-content: flex-start !important;
+  }
+  
+  .summaryRow {
+    flex-direction: column;
+  }
+  
+  .summaryCard, .metadataCard {
+    width: 100%;
+  }
+
+  .lineChartsGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .xAxisLabel {
+    font-size: 0.65rem;
+  }
+
+  .listTitle {
+    font-size: 1.3rem;
+  }
+  
+  .detailTitle {
+    font-size: 1.4rem;
+  }
+  
+  .createButton, .secondaryButton, .dangerButton {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+  }
+}
