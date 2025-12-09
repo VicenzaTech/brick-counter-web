@@ -17,6 +17,7 @@ export default function UserInfo({ username, role, mode = 'full' }: Props) {
   const [open, setOpen] = useState(false);
   const [emailNotify, setEmailNotify] = useState(true);
   const clearAuth = useAuthStore((s) => s.clearAuth);
+  const plantLabel = 'Nhà máy 1';
 
   const handleLogout = async () => {
     const logoutResult = await apiFetch('/auth/logout', {
@@ -44,7 +45,7 @@ export default function UserInfo({ username, role, mode = 'full' }: Props) {
         {!isCompact && (
           <div className={styles.userDetails}>
             <span className={styles.userName}>{username}</span>
-            <span className={styles.userRole}>{role}</span>
+            <span className={styles.userPlant}>{plantLabel}</span>
           </div>
         )}
       </button>

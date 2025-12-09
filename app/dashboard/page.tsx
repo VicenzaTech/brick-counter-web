@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useMemo, useEffect, useReducer } from 'react';
-import { Card, Select, Space, Button, Typography, Table, Tag, Tooltip } from 'antd';
+import { useState, useMemo, useEffect, useReducer } from 'react';
+import { Card, Select, Space, Typography, Table, Tag, Tooltip } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import { Line, Doughnut, Bar } from 'react-chartjs-2';
 import {
@@ -17,13 +17,14 @@ import {
     ArcElement,
     BarElement,
 } from 'chart.js';
+import type { ScriptableContext, TooltipItem } from 'chart.js';
 import dayjs, { Dayjs } from 'dayjs';
-import { ReloadOutlined } from '@ant-design/icons';
 // Import CSS Module
 import styles from './Dashboard.module.css';
 import { apiFetch } from '@/lib/http/http';
+import Link from 'next/link';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 // Đăng ký các thành phần của Chart.js
 ChartJS.register(
@@ -89,6 +90,20 @@ interface DetailedProductionRecord {
     stopReason?: StopReasonKey;
     isEmergency: boolean;
     notes?: string;
+}
+interface ProductionStageHistoryResponse {
+    id?: number | string;
+    startTime?: string | null;
+    endTime?: string | null;
+    productionLine?: { name?: string | null } | null;
+    stage?: { name?: string | null } | null;
+    product?: { name?: string | null } | null;
+    quantity?: number | string | null;
+    area?: number | string | null;
+    createdByUsername?: string | null;
+    stopReason?: StopReasonKey | null;
+    isEmergency?: boolean | null;
+    notes?: string | null;
 }
 
 interface DetailTableState {
@@ -163,6 +178,55 @@ const LINES = [{
     name: 'Dây chuyền D'
 }];
 const PRODUCT_TYPES = ['Gạch Porcelain 300x600', 'Gạch Porcelain 400x800', 'Gạch Ceramic 300x600', 'Gạch Granite 600x600'];
+type RangePreset = '30d' | '12m';
+
+type AlertLevel = 'critical' | 'warning' | 'info';
+
+interface SystemAlert {
+    id: string;
+    level: AlertLevel;
+    title: string;
+    description: string;
+    time: string;
+}
+
+const SYSTEM_ALERTS: SystemAlert[] = [
+    {
+        id: 'alert-1',
+        level: 'critical',
+        title: 'Nhiệt độ lò #2 cao bất thường',
+        description: 'Nhiệt độ đạt 1150°C, vượt ngưỡng an toàn 100°C',
+        time: '5 phút trước',
+    },
+    {
+        id: 'alert-2',
+        level: 'warning',
+        title: 'Dây chuyền C tạm dừng',
+        description: 'Đang chờ nguyên liệu từ kho vật tư',
+        time: '15 phút trước',
+    },
+    {
+        id: 'alert-3',
+        level: 'info',
+        title: 'Bảo trì định kỳ DC-D',
+        description: 'Hoàn thành dự kiến lúc 14:00',
+        time: '1 giờ trước',
+    },
+    {
+        id: 'alert-4',
+        level: 'warning',
+        title: 'Áp suất bơm men giảm',
+        description: 'Kiểm tra bộ lọc và đường ống cấp men',
+        time: '1 giờ trước',
+    },
+    {
+        id: 'alert-5',
+        level: 'info',
+        title: 'Ca tối bổ sung nhân lực',
+        description: '4 công nhân hỗ trợ dây chuyền A',
+        time: '2 giờ trước',
+    },
+];
 
 // =================== HÀM TẠO DỮ LIỆU GIẢ CHI TIẾT ===================
 
@@ -256,7 +320,8 @@ export default function Dashboard() {
     const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
     const [selectedLine, setSelectedLine] = useState<string>('all');
     const [tableStageName, setTableStageName] = useState<'all' | StageNameKey>('all');
-    const [tableRefreshKey, setTableRefreshKey] = useState(0);
+    const [trendRange, setTrendRange] = useState<RangePreset>('30d');
+    const [lineRange, setLineRange] = useState<RangePreset>('30d');
     const [detailTableState, detailTableDispatch] = useReducer(detailTableReducer, detailTableInitialState);
     const stageNameOptions = useMemo(
         () => [
@@ -268,6 +333,12 @@ export default function Dashboard() {
         ],
         []
     );
+    const alertLevelClassMap: Record<AlertLevel, string> = {
+        critical: styles.alertCritical,
+        warning: styles.alertWarning,
+        info: styles.alertInfo,
+    };
+    const selectedLineMeta = useMemo(() => LINES.find(line => String(line.id) === selectedLine), [selectedLine]);
     const handleDetailTableChange: TableProps<DetailedProductionRecord>['onChange'] = (pagination) => {
         detailTableDispatch({
             type: 'SET_PAGE',
@@ -283,7 +354,8 @@ export default function Dashboard() {
         let filtered = [...mockData];
 
         if (selectedLine !== 'all') {
-            filtered = filtered.filter(r => r.lineName === selectedLine);
+            const lineName = selectedLineMeta?.name;
+            filtered = filtered.filter(r => r.lineName === (lineName ?? selectedLine));
         }
 
         if (dateRange && dateRange[0] && dateRange[1]) {
@@ -295,7 +367,10 @@ export default function Dashboard() {
         }
 
         return filtered;
-    }, [activeFactory, dateRange, selectedLine]);
+    }, [dateRange, selectedLine, selectedLineMeta]);
+
+
+    console.log(`data, mock data:`, data, mockData)
 
     // Tính toán các chỉ số KPI
     const kpiData = useMemo(() => {
@@ -312,195 +387,299 @@ export default function Dashboard() {
         return { totalOriginalOutput, overallEfficiency, overallWasteRate, lines };
     }, [data]);
 
-    // --- Dữ liệu cho các biểu đồ ---
+    const trendSeries = useMemo(() => {
+        const dailyMap: Record<string, { actual: number; target: number }> = {};
+        const monthlyMap: Record<string, { actual: number; target: number }> = {};
+        
+        data.forEach(record => {
+            const actual = record.a1 + record.a2 + record.cut;
+            const target = Math.round(record.originalOutput * 0.95);
 
-    // 1. Biểu đồ so sánh thực tế vs kế hoạch
-    const planVsActualData = useMemo(() => {
-        const grouped = data.reduce((acc, r) => {
-            const month = dayjs(r.date).format('MM/YYYY');
-            if (!acc[month]) acc[month] = { actual: 0 };
-            acc[month].actual += r.a1 + r.a2 + r.cut; // Chỉ tính A1, A2, Cắt lô là sản phẩm chính
-            return acc;
-        }, {} as Record<string, { actual: number }>);
-
-        const sortedMonths = Object.keys(grouped).sort((a, b) => dayjs(a, 'MM/YYYY').unix() - dayjs(b, 'MM/YYYY').unix());
-
-        // Giả lập kế hoạch = actual * 95%
-        return {
-            labels: sortedMonths,
-            datasets: [
-                {
-                    label: 'Kế hoạch (m²)',
-                    data: sortedMonths.map(month => grouped[month].actual * 0.95),
-                    backgroundColor: 'rgba(96, 165, 250, 0.5)',
-                    borderColor: 'rgba(96, 165, 250, 1)',
-                    borderWidth: 1,
-                    type: 'bar' as const,
-                    order: 2,
-                },
-                {
-                    label: 'Thực tế (m²)',
-                    data: sortedMonths.map(month => grouped[month].actual),
-                    borderColor: '#10b981',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    tension: 0.3,
-                    type: 'line' as const,
-                    fill: true,
-                    order: 1,
-                },
-            ],
-        };
-    }, [data]);
-
-    // 2. Biểu đồ tròn phân bổ chất lượng
-    const qualityPieData = useMemo(() => {
-        const grouped = data.reduce((acc, r) => {
-            acc.A1 = (acc.A1 || 0) + r.a1;
-            acc.A2 = (acc.A2 || 0) + r.a2;
-            acc.CắtLô = (acc.CắtLô || 0) + r.cut;
-            acc.Phế1 = (acc.Phế1 || 0) + r.waste1;
-            acc.Phế2 = (acc.Phế2 || 0) + r.waste2;
-            acc.PhếHủy = (acc.PhếHủy || 0) + r.scrap;
-            return acc;
-        }, {} as Record<string, number>);
-
-        return {
-            labels: Object.keys(grouped),
-            datasets: [
-                {
-                    label: 'Sản lượng (m²)',
-                    data: Object.values(grouped),
-                    backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#dc2626', '#6b7280'],
-                    borderWidth: 0,
-                },
-            ],
-        };
-    }, [data]);
-
-    // 3. Biểu đồ đường tỷ lệ hao phí theo công đoạn
-    const wasteByStageData = useMemo(() => {
-        const stages = ['Hao phí mộc', 'Hao phí lò', 'Hao phí trước mài', 'Hao phí thành phẩm'];
-        const grouped = data.reduce((acc, r) => {
-            const date = dayjs(r.date).format('DD/MM');
-            if (!acc[date]) acc[date] = { date, 'Hao phí mộc': 0, 'Hao phí lò': 0, 'Hao phí trước mài': 0, 'Hao phí thành phẩm': 0 };
-            acc[date]['Hao phí mộc'] += r.waste_moc;
-            acc[date]['Hao phí lò'] += r.waste_lo;
-            acc[date]['Hao phí trước mài'] += r.waste_truoc_mai;
-            acc[date]['Hao phí thành phẩm'] += r.waste_thanh_pham;
-            return acc;
-        }, {} as any);
-
-        const sortedDates = Object.keys(grouped).sort((a, b) => dayjs(a, 'DD/MM').unix() - dayjs(b, 'DD/MM').unix());
-
-        return {
-            labels: sortedDates,
-            datasets: stages.map(stage => ({
-                label: stage,
-                data: sortedDates.map(date => grouped[date][stage]),
-                borderColor: stage === 'Hao phí mộc' ? '#f59e0b' : stage === 'Hao phí lò' ? '#ef4444' : stage === 'Hao phí trước mài' ? '#f97316' : '#dc2626',
-                backgroundColor: 'transparent',
-                tension: 0.3,
-            })),
-        };
-    }, [data]);
-
-    // 4. Biểu đồ cột sản lượng theo dây chuyền
-    const outputByLineData = useMemo(() => {
-        const grouped = data.reduce((acc, r) => {
-            if (!acc[r.lineName]) acc[r.lineName] = 0;
-            acc[r.lineName] += r.a1 + r.a2 + r.cut;
-            return acc;
-        }, {} as Record<string, number>);
-
-        return {
-            labels: Object.keys(grouped),
-            datasets: [
-                {
-                    label: 'Sản lượng (m²)',
-                    data: Object.values(grouped),
-                    backgroundColor: '#3b82f6',
-                    borderColor: '#3b82f6',
-                    borderWidth: 1,
-                },
-            ],
-        };
-    }, [data]);
-
-    // --- Cấu hình cho Chart.js ---
-    const commonChartOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'top' as const,
-                labels: { color: '#1e293b', font: { size: 12 } },
-            },
-            tooltip: {
-                titleFont: { size: 14 },
-                bodyFont: { size: 12 },
-                callbacks: {
-                    label: (context: any) => `${context.dataset.label}: ${context.parsed.y?.toLocaleString('vi-VN')}`,
-                }
-            },
-        },
-        scales: {
-            x: {
-                ticks: { color: '#64748b', font: { size: 11 } },
-                grid: { color: '#e2e8f0', drawBorder: false },
-            },
-            y: {
-                ticks: { color: '#64748b' },
-                grid: { color: '#e2e8f0', drawBorder: false },
-                title: { display: true, color: '#1e293b' }
+            if (!dailyMap[record.date]) {
+                dailyMap[record.date] = { actual: 0, target: 0 };
             }
-        }
-    };
+            dailyMap[record.date].actual += actual;
+            dailyMap[record.date].target += target;
 
-    const planVsActualOptions = {
-        ...commonChartOptions,
-        scales: {
-            x: commonChartOptions.scales.x,
-            y: { ...commonChartOptions.scales.y, title: { ...commonChartOptions.scales.y.title, text: 'Sản lượng (m²)' } }
-        }
-    };
+            const monthKey = dayjs(record.date).format('YYYY-MM');
+            if (!monthlyMap[monthKey]) {
+                monthlyMap[monthKey] = { actual: 0, target: 0 };
+            }
+            monthlyMap[monthKey].actual += actual;
+            monthlyMap[monthKey].target += target;
+        });
 
-    const wasteByStageOptions = {
-        ...commonChartOptions,
-        scales: {
-            x: commonChartOptions.scales.x,
-            y: { ...commonChartOptions.scales.y, title: { ...commonChartOptions.scales.y.title, text: 'Tỷ lệ hao phí (%)' }, ticks: { ...commonChartOptions.scales.y.ticks, callback: (value: string) => value + '%' } }
-        }
-    };
+        const sortedDailyKeys = Object.keys(dailyMap).sort((a, b) => dayjs(a).valueOf() - dayjs(b).valueOf());
+        const sortedMonthlyKeys = Object.keys(monthlyMap).sort();
 
-    const outputByLineOptions = {
-        ...commonChartOptions,
-        plugins: { ...commonChartOptions.plugins, legend: { display: false } },
-        scales: {
-            x: commonChartOptions.scales.x,
-            y: { ...commonChartOptions.scales.y, title: { ...commonChartOptions.scales.y.title, text: 'Tổng sản lượng (m²)' } }
-        }
-    };
+        const recentDailyKeys = sortedDailyKeys.slice(-30);
+        const recentMonthlyKeys = sortedMonthlyKeys.slice(-12);
 
-    const pieOptions = {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-            legend: {
-                position: 'bottom' as const,
-                labels: { color: '#1e293b', padding: 20 },
+        return {
+            daily: {
+                labels: recentDailyKeys.map(key => dayjs(key).format('DD/MM')),
+                actual: recentDailyKeys.map(key => dailyMap[key]?.actual ?? 0),
+                target: recentDailyKeys.map(key => dailyMap[key]?.target ?? 0),
             },
-            tooltip: {
-                callbacks: {
-                    label: (context: any) => {
-                        const label = context.label || '';
-                        const value = context.parsed;
-                        const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0);
-                        const percentage = ((value / total) * 100).toFixed(1);
-                        return `${label}: ${value.toLocaleString('vi-VN')} m² (${percentage}%)`;
+            monthly: {
+                labels: recentMonthlyKeys.map(key => dayjs(`${key}-01`).format('MM/YY')),
+                actual: recentMonthlyKeys.map(key => monthlyMap[key]?.actual ?? 0),
+                target: recentMonthlyKeys.map(key => monthlyMap[key]?.target ?? 0),
+            },
+        };
+    }, [data]);
+
+    const productionTrendData = useMemo(() => {
+        const selectedSeries = trendRange === '30d' ? trendSeries.daily : trendSeries.monthly;
+
+        return {
+            labels: selectedSeries.labels,
+            datasets: [
+                {
+                    label: 'Sản lượng thực tế',
+                    data: selectedSeries.actual,
+                    borderColor: '#1d4ed8',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 0,
+                    backgroundColor: (context: ScriptableContext<'line'>) => {
+                        const { chart } = context;
+                        const { ctx, chartArea } = chart;
+                        if (!chartArea) {
+                            return 'rgba(29, 78, 216, 0.2)';
+                        }
+                        const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                        gradient.addColorStop(0, 'rgba(29, 78, 216, 0.2)');
+                        gradient.addColorStop(1, 'rgba(29, 78, 216, 0)');
+                        return gradient;
+                    },
+                },
+                {
+                    label: 'Trung bình sản lượng',
+                    data: selectedSeries.target,
+                    borderColor: '#0ea5e9',
+                    borderWidth: 2,
+                    borderDash: [8, 6],
+                    fill: false,
+                    tension: 0.4,
+                    pointRadius: 0,
+                },
+            ],
+        };
+    }, [trendRange, trendSeries]);
+
+    const qualitySummary = useMemo(() => {
+        const totals = data.reduce(
+            (acc, record) => {
+                acc.a1 += record.a1;
+                acc.a2 += record.a2;
+                acc.cut += record.cut;
+                acc.scrap += record.waste1 + record.waste2 + record.scrap;
+                return acc;
+            },
+            { a1: 0, a2: 0, cut: 0, scrap: 0 }
+        );
+        const items = [
+            { key: 'a1', label: 'A1', value: totals.a1, color: '#1d4ed8' },
+            { key: 'a2', label: ' A2', value: totals.a2, color: '#16a34a' },
+            { key: 'cut', label: 'Cắt lô', value: totals.cut, color: '#eab308' },
+            { key: 'scrap', label: 'Phế phẩm', value: totals.scrap, color: '#dc2626' },
+        ];
+        const total = items.reduce((sum, item) => sum + item.value, 0);
+
+        return {
+            chartData: {
+                labels: items.map(item => item.label),
+                datasets: [
+                    {
+                        label: 'Tỷ lệ chất lượng',
+                        data: items.map(item => item.value),
+                        backgroundColor: items.map(item => item.color),
+                        borderWidth: 0,
+                    },
+                ],
+            },
+            stats: items.map(item => ({
+                ...item,
+                percentage: total ? Math.round((item.value / total) * 100) : 0,
+            })),
+            total,
+        };
+    }, [data]);
+
+    const rangeFilteredData = useMemo(() => {
+        const now = dayjs();
+        const dailyCutoff = now.subtract(29, 'day').startOf('day').valueOf();
+        const monthlyCutoff = now.subtract(11, 'month').startOf('month').valueOf();
+
+        const dailyRecords = data.filter(record => dayjs(record.date).valueOf() >= dailyCutoff);
+        const monthlyRecords = data.filter(record => dayjs(record.date).valueOf() >= monthlyCutoff);
+
+        return { dailyRecords, monthlyRecords };
+    }, [data]);
+
+    const linePerformanceData = useMemo(() => {
+        const relevantRecords = lineRange === '30d' ? rangeFilteredData.dailyRecords : rangeFilteredData.monthlyRecords;
+        const grouped = relevantRecords.reduce((acc, record) => {
+            if (!acc[record.lineName]) {
+                acc[record.lineName] = 0;
+            }
+            acc[record.lineName] += record.a1 + record.a2 + record.cut;
+            return acc;
+        }, {} as Record<string, number>);
+
+        const labels = LINES.map(line => line.name);
+
+        return {
+            labels,
+            datasets: [
+                {
+                    label: 'Sản lượng',
+                    data: labels.map(label => grouped[label] ?? 0),
+                    backgroundColor: '#1d4ed8',
+                    borderRadius: 8,
+                    barThickness: 32,
+                },
+            ],
+        };
+    }, [lineRange, rangeFilteredData]);
+
+    const productionTrendOptions = useMemo(
+        () => ({
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index' as const, intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: '#0f172a',
+                    cornerRadius: 8,
+                    padding: 12,
+                    callbacks: {
+                        label: (context: TooltipItem<'line'>) => {
+                            const value = typeof context.parsed.y === 'number' ? context.parsed.y : 0;
+                            return `${context.dataset.label}: ${value.toLocaleString('vi-VN')} m2`;
+                        },
                     },
                 },
             },
-        },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#94a3b8', font: { size: 12 } },
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(226, 232, 240, 0.7)', drawBorder: false },
+                    ticks: {
+                        color: '#94a3b8',
+                        callback: (value: number | string) => {
+                            const numeric = typeof value === 'string' ? Number(value) : value;
+                            return `${Math.round((numeric ?? 0) / 1000)}k`;
+                        },
+                    },
+                },
+            },
+        }),
+        []
+    );
+
+    const qualityChartOptions = useMemo(
+        () => ({
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '68%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context: TooltipItem<'doughnut'>) => {
+                            const datasetValues = context.dataset.data as number[];
+                            const total = datasetValues.reduce((sum: number, value: number) => sum + value, 0);
+                            const parsedValue = typeof context.parsed === 'number' ? context.parsed : 0;
+                            const percentage = total ? ((parsedValue / total) * 100).toFixed(1) : '0';
+                            return `${context.label}: ${parsedValue.toLocaleString('vi-VN')} m2 (${percentage}%)`;
+                        },
+                    },
+                },
+            },
+        }),
+        []
+    );
+
+    const linePerformanceOptions = useMemo(
+        () => ({
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (context: TooltipItem<'bar'>) => {
+                            const value = typeof context.parsed.y === 'number' ? context.parsed.y : 0;
+                            return `${context.dataset.label}: ${value.toLocaleString('vi-VN')} m2`;
+                        },
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: '#94a3b8' },
+                },
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(226, 232, 240, 0.7)', drawBorder: false },
+                    ticks: {
+                        color: '#94a3b8',
+                        callback: (value: number | string) => {
+                            const numeric = typeof value === 'string' ? Number(value) : value;
+                            return `${Math.round((numeric ?? 0) / 1000)}k`;
+                        },
+                    },
+                },
+            },
+        }),
+        []
+    );
+    const renderAlertIcon = (level: AlertLevel) => {
+        switch (level) {
+            case 'critical':
+                return (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 9v4" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" />
+                        <circle cx="12" cy="16.5" r="1.5" fill="#dc2626" />
+                        <path
+                            d="M10.29 4.86 2.82 18a2 2 0 0 0 1.71 3h14.94a2 2 0 0 0 1.71-3L13.71 4.86a2 2 0 0 0-3.42 0Z"
+                            stroke="#fecaca"
+                            strokeWidth="1.8"
+                            fill="none"
+                        />
+                    </svg>
+                );
+            case 'warning':
+                return (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <path d="M12 7v6" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" />
+                        <circle cx="12" cy="17" r="1.4" fill="#f59e0b" />
+                        <circle cx="12" cy="12" r="10" stroke="#fde68a" strokeWidth="1.8" fill="none" />
+                    </svg>
+                );
+            default:
+                return (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                        <path
+                            d="M12 8v5"
+                            stroke="#0ea5e9"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                        />
+                        <circle cx="12" cy="16" r="1.4" fill="#0ea5e9" />
+                        <circle cx="12" cy="12" r="9" stroke="#bae6fd" strokeWidth="1.8" fill="none" />
+                    </svg>
+                );
+        }
     };
     const detailedTableColumns: ColumnsType<DetailedProductionRecord> = [
         {
@@ -625,20 +804,25 @@ export default function Dashboard() {
                 }
 
                 const payload = await res.json();
-                const mappedPayload: DetailedProductionRecord[] = (payload?.pagidata ?? []).map((item: any) => ({
-                    key: String(item.id),
-                    startTime: item?.startTime ?? null,
-                    endTime: item?.endTime ?? null,
-                    productionLineName: item?.productionLine?.name ?? 'Chưa xác định',
-                    stageName: item?.stage?.name ?? 'Chưa xác định',
-                    productName: item?.product?.name ?? 'Chưa xác định',
-                    quantity: Number(item?.quantity ?? 0),
-                    area: Number(item?.area ?? 0),
-                    createdBy: item?.createdByUsername ?? 'Hệ thống',
-                    stopReason: item?.stopReason ?? undefined,
-                    isEmergency: Boolean(item?.isEmergency),
-                    notes: item?.notes ?? '',
-                }));
+                const mappedPayload: DetailedProductionRecord[] = (payload?.pagidata ?? []).map(
+                    (item: ProductionStageHistoryResponse) => ({
+                        key: String(
+                            item?.id ??
+                            `${item?.productionLine?.name ?? 'row'}-${item?.startTime ?? Date.now()}`
+                        ),
+                        startTime: item?.startTime ?? null,
+                        endTime: item?.endTime ?? null,
+                        productionLineName: item?.productionLine?.name ?? 'Chưa xác định',
+                        stageName: item?.stage?.name ?? 'Chưa xác định',
+                        productName: item?.product?.name ?? 'Chưa xác định',
+                        quantity: Number(item?.quantity ?? 0),
+                        area: Number(item?.area ?? 0),
+                        createdBy: item?.createdByUsername ?? 'Hệ thống',
+                        stopReason: (item?.stopReason as StopReasonKey) ?? undefined,
+                        isEmergency: Boolean(item?.isEmergency),
+                        notes: item?.notes ?? '',
+                    })
+                );
 
                 detailTableDispatch({
                     type: 'SUCCESS',
@@ -666,7 +850,7 @@ export default function Dashboard() {
         return () => {
             controller.abort();
         };
-    }, [selectedLine, dateRange, tableStageName, tableRefreshKey, activeFactory]);
+    }, [selectedLine, dateRange, tableStageName, activeFactory]);
     // --- Render giao diện ---
     return (
         // Sử dụng styles từ CSS Module
@@ -739,33 +923,143 @@ export default function Dashboard() {
 
                 {/* Biểu đồ */}
                 <div className={styles.chartsSection}>
-                    <div className={`${styles.card} ${styles.halfWidth}`}>
-                        <h2 className={styles.cardTitle}>Phân Bổ Chất Lượng Cuối Cùng</h2>
-                        <div className={styles.chartContainer} style={{ height: '360px' }}>
-                            <Doughnut data={qualityPieData} options={pieOptions} />
+                    <div className={styles.mainCharts}>
+                        <div className={`${styles.card} ${styles.trendCard}`}>
+                            <div className={styles.cardHeader}>
+                                <div>
+                                    <p className={styles.cardSubtitle}>So sánh sản lượng thực tế với mục tiêu</p>
+                                    <h2 className={styles.cardTitle}>
+                                        {trendRange === '30d' ? 'Xu hướng sản xuất 30 ngày' : 'Xu hướng sản xuất 12 tháng'}
+                                    </h2>
+                                </div>
+                                <div className={styles.trendLegend}>
+                                    <span>
+                                        <span className={styles.legendDot} style={{ backgroundColor: '#1d4ed8' }} />
+                                        Thực tế
+                                    </span>
+                                    <span>
+                                        <span className={styles.legendDash} style={{ borderColor: '#0ea5e9' }} />
+                                        Trung bình
+                                    </span>
+                                </div>
+                                <div className={styles.cardHeaderControls}>
+                                    <div className={styles.rangeToggle} role="group" aria-label="Chọn khoảng thời gian xu hướng">
+                                        <button
+                                            type="button"
+                                            aria-pressed={trendRange === '30d'}
+                                            onClick={() => setTrendRange('30d')}
+                                            className={`${styles.rangeButton} ${trendRange === '30d' ? styles.rangeButtonActive : ''}`}
+                                        >
+                                            30 ngày
+                                        </button>
+                                        <button
+                                            type="button"
+                                            aria-pressed={trendRange === '12m'}
+                                            onClick={() => setTrendRange('12m')}
+                                            className={`${styles.rangeButton} ${trendRange === '12m' ? styles.rangeButtonActive : ''}`}
+                                        >
+                                            12 tháng
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className={styles.chartContainer} style={{ height: '420px' }}>
+                                <Line data={productionTrendData} options={productionTrendOptions} />
+                            </div>
+                        </div>
+                        <div className={styles.card}>
+                            <div className={styles.cardHeader}>
+                                <div>
+                                    <p className={styles.cardSubtitle}>Sản lượng và hiệu suất từng dây chuyền</p>
+                                    <h2 className={styles.cardTitle}>
+                                        {lineRange === '30d' ? 'Hiệu suất 30 ngày theo dây chuyền' : 'Hiệu suất 12 tháng theo dây chuyền'}
+                                    </h2>
+                                </div>
+                                <div className={styles.rangeToggle} role="group" aria-label="Chọn khoảng thời gian hiệu suất">
+                                    <button
+                                        type="button"
+                                        aria-pressed={lineRange === '30d'}
+                                        onClick={() => setLineRange('30d')}
+                                        className={`${styles.rangeButton} ${lineRange === '30d' ? styles.rangeButtonActive : ''}`}
+                                    >
+                                        30 ngày
+                                    </button>
+                                    <button
+                                        type="button"
+                                        aria-pressed={lineRange === '12m'}
+                                        onClick={() => setLineRange('12m')}
+                                        className={`${styles.rangeButton} ${lineRange === '12m' ? styles.rangeButtonActive : ''}`}
+                                    >
+                                        12 tháng
+                                    </button>
+                                </div>
+                            </div>
+                            <div className={styles.chartContainer} style={{ height: '320px' }}>
+                                <Bar data={linePerformanceData} options={linePerformanceOptions} />
+                            </div>
                         </div>
                     </div>
-                    <div className={`${styles.card} ${styles.halfWidth}`}>
-                        <h2 className={styles.cardTitle}>Sản Lượng Theo Dây Chuyền</h2>
-                        <div className={styles.chartContainer} style={{ height: '360px' }}>
-                            <Bar data={outputByLineData} options={outputByLineOptions} />
+                    <div className={styles.sidePanels}>
+                        <div className={styles.card}>
+                            <div className={styles.cardHeader}>
+                                <div>
+                                    <p className={styles.cardSubtitle}>Tỷ lệ phân loại sản phẩm</p>
+                                    <h2 className={styles.cardTitle}>Phân bổ chất lượng</h2>
+                                </div>
+                            </div>
+                            <div className={styles.qualityWrapper}>
+                                <div className={styles.donutWrapper}>
+                                    <Doughnut data={qualitySummary.chartData} options={qualityChartOptions} />
+                                    <div className={styles.donutCenter}>
+                                        <span>Tổng</span>
+                                        <strong>{qualitySummary.total.toLocaleString('vi-VN')}</strong>
+                                    </div>
+                                </div>
+                                <ul className={styles.qualityLegend}>
+                                    {qualitySummary.stats.map(item => (
+                                        <li key={item.key} className={styles.qualityLegendItem}>
+                                            <span className={styles.legendDot} style={{ backgroundColor: item.color }} />
+                                            <div>
+                                                <p>{item.label}</p>
+                                                <small>{item.percentage}% · {item.value.toLocaleString('vi-VN')}</small>
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
                         </div>
-                    </div>
-                    <div className={`${styles.card} ${styles.fullWidth}`}>
-                        <h2 className={styles.cardTitle}>So Sánh Thực Tế vs. Kế Hoạch</h2>
-                        <div className={styles.chartContainer} style={{ height: '420px' }}>
-                            <Bar data={planVsActualData} options={planVsActualOptions} />
+                        <div className={`${styles.card} ${styles.alertCard}`}>
+                            <div className={styles.alertHeader}>
+                                <div>
+                                    <p className={styles.cardSubtitle}>Giám sát thời gian thực</p>
+                                    <h2 className={styles.cardTitle}>Cảnh báo hệ thống</h2>
+                                </div>
+                                <span className={styles.alertBadge}>{SYSTEM_ALERTS.length} mới</span>
+                            </div>
+                            <div className={styles.alertList}>
+                                {SYSTEM_ALERTS.map(alert => (
+                                    <div
+                                        key={alert.id}
+                                        className={`${styles.alertItem} ${alertLevelClassMap[alert.level]}`}
+                                    >
+                                        <div className={styles.alertIcon}>{renderAlertIcon(alert.level)}</div>
+                                        <div className={styles.alertContent}>
+                                            <p className={styles.alertTitle}>{alert.title}</p>
+                                            <p className={styles.alertDesc}>{alert.description}</p>
+                                            <span className={styles.alertMeta}>{alert.time}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+
+
+                            <div className={styles.alertMenu}>
+                                <Link href={'/production-history'}>Xem tất cả</Link>
+                            </div>
                         </div>
                     </div>
                 </div>
-
-                <div className={`${styles.card} ${styles.fullWidth}`}>
-                    <h2 className={styles.cardTitle}>Xu Hướng Tỷ Lệ Hao Phí Theo Công Đoạn</h2>
-                    <div className={styles.chartContainer} style={{ height: '350px' }}>
-                        <Line data={wasteByStageData} options={wasteByStageOptions} />
-                    </div>
-                </div>
-
+                {/* <Line data={wasteByStageData} options={wasteByStageOptions} /> */}
                 {/* Bảng chi tiết sản xuất */}
                 <Card
                     title="Chi tiết sản lượng"
