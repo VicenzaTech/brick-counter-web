@@ -20,6 +20,7 @@ import { useShallow } from 'zustand/shallow';
 import UserInfo from '../UserInfo/UserInfo';
 import Separator from '../Separator/Separator';
 import Image from 'next/image';
+import { apiFetch } from '@/lib/http/http';
 
 const navItems = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Tổng quan' },
@@ -34,6 +35,7 @@ export default function Navbar() {
     const pathname = usePathname();
     const { user, isAuthenticated } = useAuthStore(useShallow(authStateSelector));
     const [menuOpen, setMenuOpen] = useState(false);
+    const clearAuth = useAuthStore((s) => s.clearAuth);
 
     useEffect(() => {
         if (!menuOpen) {
@@ -50,6 +52,17 @@ export default function Navbar() {
         return null;
     }
 
+    const handleLogout = async () => {
+        const logoutResult = await apiFetch('/auth/logout', {
+            method: 'POST',
+        });
+        if (!logoutResult.ok) {
+            return;
+        }
+        clearAuth();
+        window.location.href = '/auth';
+    };
+
     const closeMenu = () => setMenuOpen(false);
 
     return (
@@ -60,7 +73,7 @@ export default function Navbar() {
                         {/* <div className={styles.brandIcon}>
                             <span>BP</span>
                         </div> */}
-                        <Image alt={'Logo'} src={'/logo-preview.png'} width={52} height={52}/>
+                        <Image alt={'Logo'} src={'/logo-preview.png'} width={52} height={52} />
                         <div className={styles.brandMeta}>
                             <p className={styles.brandTitle}>Admin Panel</p>
                             <span className={styles.brandSubtitle}>Quản lý sản xuất</span>
@@ -164,7 +177,7 @@ export default function Navbar() {
                         </nav>
                         <div className={styles.mobileActions}>
                             <UserInfo username={user?.username} role={user?.roles ?? ''} mode="full" />
-                            <button type="button" className={styles.logoutButton}>
+                            <button onClick={handleLogout} type="button" className={styles.logoutButton}>
                                 <LogOut size={18} />
                                 <div>
                                     <span className={styles.logoutLabel}>Đăng xuất</span>

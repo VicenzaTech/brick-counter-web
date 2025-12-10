@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useReducer } from 'react';
+import { useState, useMemo, useEffect, useReducer, useRef } from 'react';
 import { Card, Select, Space, Typography, Table, Tag, Tooltip } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import { Line, Doughnut, Bar } from 'react-chartjs-2';
@@ -164,20 +164,6 @@ function detailTableReducer(state: DetailTableState, action: DetailTableAction):
     }
 }
 
-const LINES = [{
-    id: 1,
-    name: 'Dây chuyền A',
-}, {
-    id: 2,
-    name: 'Dây chuyền B',
-}, {
-    id: 3,
-    name: 'Dây chuyền C',
-}, {
-    id: 4,
-    name: 'Dây chuyền D'
-}];
-const PRODUCT_TYPES = ['Gạch Porcelain 300x600', 'Gạch Porcelain 400x800', 'Gạch Ceramic 300x600', 'Gạch Granite 600x600'];
 type RangePreset = '30d' | '12m';
 
 type AlertLevel = 'critical' | 'warning' | 'info';
@@ -267,52 +253,75 @@ interface ProductionRecord {
     waste_thanh_pham: number; // %
 }
 
-// =================== HÀM TẠO DỮ LIỆU GIẢ ===================
-const generateMockData = (): ProductionRecord[] => {
-    const today = dayjs();
-    const records: ProductionRecord[] = [];
-
-    for (let i = 0; i < 90; i++) {
-        const date = today.subtract(i, 'day').format('YYYY-MM-DD');
-        const numLinesToRun = Math.floor(Math.random() * 4) + 1;
-
-        for (let j = 0; j < numLinesToRun; j++) {
-            const lineName = LINES[j].name;
-            const productType = PRODUCT_TYPES[Math.floor(Math.random() * PRODUCT_TYPES.length)];
-            const originalOutput = Math.floor(Math.random() * 5000) + 3000; // Sản lượng gốc 3000-8000 m²
-
-            // Tỷ lệ chất lượng cuối cùng
-            const a1Rate = 0.80 + Math.random() * 0.1; // 80% - 90%
-            const a2Rate = 0.05 + Math.random() * 0.05; // 5% - 10%
-            const cutRate = 0.02 + Math.random() * 0.04; // 2% - 6%
-            const waste1Rate = 0.01 + Math.random() * 0.02; // 1% - 3%
-            const waste2Rate = 0.005 + Math.random() * 0.01; // 0.5% - 1.5%
-            const scrapRate = 0.001 + Math.random() * 0.009; // 0.1% - 1%
-
-            const record: ProductionRecord = {
-                key: `${date}-${lineName}`,
-                date,
-                lineName,
-                productType,
-                originalOutput,
-                a1: Math.floor(originalOutput * a1Rate),
-                a2: Math.floor(originalOutput * a2Rate),
-                cut: Math.floor(originalOutput * cutRate),
-                waste1: Math.floor(originalOutput * waste1Rate),
-                waste2: Math.floor(originalOutput * waste2Rate),
-                scrap: Math.floor(originalOutput * scrapRate),
-                // Hao phí theo công đoạn (tỷ lệ % trên sản lượng gốc)
-                waste_moc: 1 + Math.random() * 2, // 1% - 3%
-                waste_lo: 0.5 + Math.random() * 1.5, // 0.5% - 2%
-                waste_truoc_mai: 0.8 + Math.random() * 1.2, // 0.8% - 2%
-                waste_thanh_pham: 0.5 + Math.random() * 1.5, // 0.5% - 2%
-            };
-            records.push(record);
-        }
-    }
-    return records;
+const getActualOutput = (record: ProductionRecord) => {
+    const categorizedActual = record.a1 + record.a2 + record.cut;
+    return categorizedActual > 0 ? categorizedActual : record.originalOutput;
 };
-const mockData = generateMockData();
+
+// =================== HÀM TẠO DỮ LIỆU GIẢ ===================
+interface LineOption {
+    id: string;
+    label: string;
+}
+
+interface DatePreset {
+    key: RangePreset;
+    label: string;
+}
+
+interface KpiCardPayload {
+    key: string;
+    label: string;
+    value: number;
+    unit?: string;
+}
+
+interface RunsAnalyticsResponse {
+    filters?: {
+        productionLine?: {
+            selected?: string;
+            options?: LineOption[];
+        };
+        dateRange?: {
+            presets?: DatePreset[];
+            selectedPreset?: RangePreset;
+            from?: string;
+            to?: string;
+        };
+    };
+    kpiCards?: KpiCardPayload[];
+    records?: ProductionRecord[];
+}
+
+const DEFAULT_LINE_OPTIONS: LineOption[] = [
+    { id: 'all', label: 'Tất cả dây chuyền' },
+];
+
+const DEFAULT_DATE_PRESETS: DatePreset[] = [
+    { key: '30d', label: '30 ngày gần nhất' },
+    { key: '12m', label: '12 tháng gần nhất' },
+];
+
+const PRESET_LABEL_OVERRIDES: Record<RangePreset, string> = {
+    '30d': '30 ngày gần nhất',
+    '12m': '12 tháng gần nhất',
+};
+
+const normalizePresetLabel = (preset: DatePreset): DatePreset => ({
+    ...preset,
+    label: PRESET_LABEL_OVERRIDES[preset.key] ?? preset.label,
+});
+
+const KPI_ACCENTS = ['#60a5fa', '#34d399', '#f87171', '#fbbf24'];
+
+const formatKpiValue = (value: number, unit?: string) => {
+    if (unit === '%') {
+        return `${value.toFixed(2)}%`;
+    }
+    const formatted = Number.isFinite(value) ? value.toLocaleString('vi-VN') : String(value);
+    return unit ? `${formatted} ${unit}` : formatted;
+};
+
 
 // =================== COMPONENT CHÍNH ===================
 export default function Dashboard() {
@@ -322,7 +331,16 @@ export default function Dashboard() {
     const [tableStageName, setTableStageName] = useState<'all' | StageNameKey>('all');
     const [trendRange, setTrendRange] = useState<RangePreset>('30d');
     const [lineRange, setLineRange] = useState<RangePreset>('30d');
+    const [lineOptions, setLineOptions] = useState<LineOption[]>(DEFAULT_LINE_OPTIONS);
+    const [kpiCards, setKpiCards] = useState<KpiCardPayload[]>([]);
+    const [analyticsRecords, setAnalyticsRecords] = useState<ProductionRecord[]>([]);
+    const [analyticsLoading, setAnalyticsLoading] = useState(false);
+    const [analyticsError, setAnalyticsError] = useState<string | null>(null);
+    const [hasLoadedAnalytics, setHasLoadedAnalytics] = useState(false);
+    const [datePresets, setDatePresets] = useState<DatePreset[]>(DEFAULT_DATE_PRESETS.map(normalizePresetLabel));
+    const [dateRangeSource, setDateRangeSource] = useState<'preset' | 'manual'>('preset');
     const [detailTableState, detailTableDispatch] = useReducer(detailTableReducer, detailTableInitialState);
+    const hasSyncedInitialFilters = useRef(false);
     const stageNameOptions = useMemo(
         () => [
             { value: 'all', label: 'Tất cả công đoạn' },
@@ -338,7 +356,24 @@ export default function Dashboard() {
         warning: styles.alertWarning,
         info: styles.alertInfo,
     };
-    const selectedLineMeta = useMemo(() => LINES.find(line => String(line.id) === selectedLine), [selectedLine]);
+    const manualRange = useMemo(() => {
+        if (dateRangeSource !== 'manual' || !dateRange?.[0] || !dateRange?.[1]) {
+            return null;
+        }
+        return [dateRange[0], dateRange[1]] as [Dayjs, Dayjs];
+    }, [dateRange, dateRangeSource]);
+    const selectedLineOption = useMemo(
+        () => lineOptions.find(option => option.id === selectedLine),
+        [lineOptions, selectedLine]
+    );
+    useEffect(() => {
+        if (!lineOptions.length) {
+            return;
+        }
+        if (!lineOptions.some(option => option.id === selectedLine)) {
+            setSelectedLine(lineOptions[0].id);
+        }
+    }, [lineOptions, selectedLine]);
     const handleDetailTableChange: TableProps<DetailedProductionRecord>['onChange'] = (pagination) => {
         detailTableDispatch({
             type: 'SET_PAGE',
@@ -349,12 +384,144 @@ export default function Dashboard() {
         });
     };
 
+    useEffect(() => {
+        const controller = new AbortController();
+
+        const fetchAnalytics = async () => {
+            setAnalyticsLoading(true);
+            setAnalyticsError(null);
+            try {
+                const params = new URLSearchParams();
+                params.set('productionLine', selectedLine);
+                if (manualRange) {
+                    params.set('from', manualRange[0].startOf('day').toISOString());
+                    params.set('to', manualRange[1].endOf('day').toISOString());
+                } else {
+                    params.set('range', trendRange);
+                }
+
+                const response = await apiFetch(`/runs-analytics?${params.toString()}`, { signal: controller.signal });
+                if (!response.ok) {
+                    throw new Error('Không thể tải dữ liệu phân tích');
+                }
+                const payload: RunsAnalyticsResponse = await response.json();
+                if (controller.signal.aborted) {
+                    return;
+                }
+
+                setAnalyticsRecords(payload.records ?? []);
+                setKpiCards(payload.kpiCards ?? []);
+                setHasLoadedAnalytics(true);
+
+                if (payload.filters?.productionLine?.options?.length) {
+                    const incoming = payload.filters.productionLine.options;
+                    const hasAll = incoming.some(option => option.id === 'all');
+                    const normalizedOptions = hasAll
+                        ? [
+                            DEFAULT_LINE_OPTIONS[0],
+                            ...incoming.filter(option => option.id !== 'all'),
+                        ]
+                        : [...DEFAULT_LINE_OPTIONS, ...incoming];
+                    setLineOptions(normalizedOptions);
+                }
+
+                const selectedLineFromApi = payload.filters?.productionLine?.selected;
+                if (!hasSyncedInitialFilters.current && selectedLineFromApi && selectedLineFromApi !== selectedLine) {
+                    setSelectedLine(selectedLineFromApi);
+                }
+
+                if (payload.filters?.dateRange?.presets?.length) {
+                    setDatePresets(payload.filters.dateRange.presets.map(normalizePresetLabel));
+                }
+
+                const incomingPreset = payload.filters?.dateRange?.selectedPreset;
+                if (incomingPreset && dateRangeSource !== 'manual' && incomingPreset !== trendRange) {
+                    setTrendRange(incomingPreset);
+                    setLineRange(prev => (prev === trendRange ? incomingPreset : prev));
+                }
+
+                if (payload.filters?.dateRange?.from && payload.filters?.dateRange?.to && dateRangeSource !== 'manual') {
+                    setDateRange([dayjs(payload.filters.dateRange.from), dayjs(payload.filters.dateRange.to)]);
+                }
+
+                if (!hasSyncedInitialFilters.current) {
+                    hasSyncedInitialFilters.current = true;
+                }
+            } catch (error) {
+                if (controller.signal.aborted) {
+                    return;
+                }
+                setAnalyticsError(error instanceof Error ? error.message : 'Không thể tải dữ liệu phân tích');
+            } finally {
+                if (!controller.signal.aborted) {
+                    setAnalyticsLoading(false);
+                }
+            }
+        };
+
+        fetchAnalytics();
+
+        return () => controller.abort();
+    }, [selectedLine, trendRange, dateRangeSource, manualRange]);
+
+    const handlePresetRangeChange = (presetKey: RangePreset) => {
+        setDateRangeSource('preset');
+        setTrendRange(presetKey);
+        setDateRange(null);
+    };
+
+    const handleLineRangeChange = (presetKey: RangePreset) => {
+        setLineRange(presetKey);
+    };
+
+    const handleDateInputChange = (type: 'start' | 'end', value: string) => {
+        if (!value) {
+            setDateRange(null);
+            setDateRangeSource('preset');
+            return;
+        }
+
+        const parsed = dayjs(value);
+        if (!parsed.isValid()) {
+            return;
+        }
+
+        setDateRangeSource('manual');
+        setDateRange(prev => {
+            let start = prev?.[0] ?? parsed;
+            let end = prev?.[1] ?? parsed;
+
+            if (type === 'start') {
+                start = parsed;
+                if (end && parsed.isAfter(end)) {
+                    end = parsed;
+                }
+            } else {
+                end = parsed;
+                if (start && parsed.isBefore(start)) {
+                    start = parsed;
+                }
+            }
+
+            return [start, end];
+        });
+    };
+
+    const handleResetFilters = () => {
+        setSelectedLine('all');
+        setDateRange(null);
+        setDateRangeSource('preset');
+        setTrendRange('30d');
+        setLineRange('30d');
+        setTableStageName('all');
+    };
+
     // Lọc dữ liệu
     const data = useMemo(() => {
-        let filtered = [...mockData];
+        let filtered = [...analyticsRecords];
 
         if (selectedLine !== 'all') {
-            const lineName = selectedLineMeta?.name;
+            const lineName = selectedLineOption?.label;
             filtered = filtered.filter(r => r.lineName === (lineName ?? selectedLine));
         }
 
@@ -367,33 +534,37 @@ export default function Dashboard() {
         }
 
         return filtered;
-    }, [dateRange, selectedLine, selectedLineMeta]);
+    }, [analyticsRecords, dateRange, selectedLine, selectedLineOption]);
 
+    const availableLineLabels = useMemo(() => {
+        const optionLabels = lineOptions
+            .filter(option => option.id !== 'all')
+            .map(option => option.label);
 
-    console.log(`data, mock data:`, data, mockData)
+        if (optionLabels.length) {
+            return optionLabels;
+        }
 
-    // Tính toán các chỉ số KPI
-    const kpiData = useMemo(() => {
-        const totalOriginalOutput = data.reduce((sum, r) => sum + r.originalOutput, 0);
-        const totalFinalOutput = data.reduce((sum, r) => sum + r.a1 + r.a2 + r.cut + r.waste1 + r.waste2 + r.scrap, 0);
-        const totalWaste = data.reduce((sum, r) => sum + r.cut + r.waste1 + r.waste2 + r.scrap, 0);
-        const lines = new Set(data.map(r => r.lineName)).size;
+        return Array.from(new Set(analyticsRecords.map(record => record.lineName)));
+    }, [analyticsRecords, lineOptions]);
 
-        // Hiệu suất toàn bộ quá trình = (Tổng sản phẩm cuối cùng / Tổng sản lượng gốc) * 100
-        const overallEfficiency = totalOriginalOutput > 0 ? (totalFinalOutput / totalOriginalOutput) * 100 : 0;
-        // Tỷ lệ hao phí = (Tổng phế phẩm / Tổng sản lượng gốc) * 100
-        const overallWasteRate = totalOriginalOutput > 0 ? (totalWaste / totalOriginalOutput) * 100 : 0;
-
-        return { totalOriginalOutput, overallEfficiency, overallWasteRate, lines };
-    }, [data]);
+    const normalizedDatePresets = useMemo(() => {
+        const base = datePresets.length ? datePresets : DEFAULT_DATE_PRESETS;
+        return base.map(normalizePresetLabel);
+    }, [datePresets]);
+    const trendRangeLabel = normalizedDatePresets.find(preset => preset.key === trendRange)?.label ?? '';
+    const lineRangeLabel = normalizedDatePresets.find(preset => preset.key === lineRange)?.label ?? '';
+    const skeletonRangeCount = Math.max(normalizedDatePresets.length, 2);
+    const showSkeletons = analyticsLoading && !hasLoadedAnalytics;
 
     const trendSeries = useMemo(() => {
         const dailyMap: Record<string, { actual: number; target: number }> = {};
         const monthlyMap: Record<string, { actual: number; target: number }> = {};
         
         data.forEach(record => {
-            const actual = record.a1 + record.a2 + record.cut;
-            const target = Math.round(record.originalOutput * 0.95);
+            const actual = getActualOutput(record);
+            const baseTarget = record.originalOutput || actual;
+            const target = Math.round(baseTarget * 0.95);
 
             if (!dailyMap[record.date]) {
                 dailyMap[record.date] = { actual: 0, target: 0 };
@@ -429,43 +600,48 @@ export default function Dashboard() {
         };
     }, [data]);
 
-    const productionTrendData = useMemo(() => {
+    const productionTrend = useMemo(() => {
         const selectedSeries = trendRange === '30d' ? trendSeries.daily : trendSeries.monthly;
+        const hasSinglePoint = selectedSeries.labels.length <= 1;
 
         return {
-            labels: selectedSeries.labels,
-            datasets: [
-                {
-                    label: 'Sản lượng thực tế',
-                    data: selectedSeries.actual,
-                    borderColor: '#1d4ed8',
-                    borderWidth: 3,
-                    fill: true,
-                    tension: 0.4,
-                    pointRadius: 0,
-                    backgroundColor: (context: ScriptableContext<'line'>) => {
-                        const { chart } = context;
-                        const { ctx, chartArea } = chart;
-                        if (!chartArea) {
-                            return 'rgba(29, 78, 216, 0.2)';
-                        }
-                        const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-                        gradient.addColorStop(0, 'rgba(29, 78, 216, 0.2)');
-                        gradient.addColorStop(1, 'rgba(29, 78, 216, 0)');
-                        return gradient;
+            hasSinglePoint,
+            data: {
+                labels: selectedSeries.labels,
+                datasets: [
+                    {
+                        label: 'Sản lượng thực tế',
+                        data: selectedSeries.actual,
+                        borderColor: '#1d4ed8',
+                        borderWidth: 3,
+                        fill: hasSinglePoint ? false : true,
+                        tension: 0.4,
+                        pointRadius: hasSinglePoint ? 5 : 0,
+                        pointHoverRadius: hasSinglePoint ? 7 : 4,
+                        backgroundColor: (context: ScriptableContext<'line'>) => {
+                            const { chart } = context;
+                            const { ctx, chartArea } = chart;
+                            if (!chartArea) {
+                                return 'rgba(29, 78, 216, 0.2)';
+                            }
+                            const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                            gradient.addColorStop(0, 'rgba(29, 78, 216, 0.2)');
+                            gradient.addColorStop(1, 'rgba(29, 78, 216, 0)');
+                            return gradient;
+                        },
                     },
-                },
-                {
-                    label: 'Trung bình sản lượng',
-                    data: selectedSeries.target,
-                    borderColor: '#0ea5e9',
-                    borderWidth: 2,
-                    borderDash: [8, 6],
-                    fill: false,
-                    tension: 0.4,
-                    pointRadius: 0,
-                },
-            ],
+                    {
+                        label: 'Trung bình sản lượng',
+                        data: selectedSeries.target,
+                        borderColor: '#0ea5e9',
+                        borderWidth: 2,
+                        borderDash: [8, 6],
+                        fill: false,
+                        tension: 0.4,
+                        pointRadius: hasSinglePoint ? 4 : 0,
+                    },
+                ],
+            },
         };
     }, [trendRange, trendSeries]);
 
@@ -525,11 +701,11 @@ export default function Dashboard() {
             if (!acc[record.lineName]) {
                 acc[record.lineName] = 0;
             }
-            acc[record.lineName] += record.a1 + record.a2 + record.cut;
+            acc[record.lineName] += getActualOutput(record);
             return acc;
         }, {} as Record<string, number>);
 
-        const labels = LINES.map(line => line.name);
+        const labels = availableLineLabels.length ? availableLineLabels : Object.keys(grouped);
 
         return {
             labels,
@@ -539,11 +715,11 @@ export default function Dashboard() {
                     data: labels.map(label => grouped[label] ?? 0),
                     backgroundColor: '#1d4ed8',
                     borderRadius: 8,
-                    barThickness: 32,
+                    barThickness: 20,
                 },
             ],
         };
-    }, [lineRange, rangeFilteredData]);
+    }, [availableLineLabels, lineRange, rangeFilteredData]);
 
     const productionTrendOptions = useMemo(
         () => ({
@@ -568,6 +744,7 @@ export default function Dashboard() {
                 x: {
                     grid: { display: false },
                     ticks: { color: '#94a3b8', font: { size: 12 } },
+                    offset: productionTrend.hasSinglePoint,
                 },
                 y: {
                     beginAtZero: true,
@@ -582,7 +759,7 @@ export default function Dashboard() {
                 },
             },
         }),
-        []
+        [productionTrend.hasSinglePoint]
     );
 
     const qualityChartOptions = useMemo(
@@ -872,162 +1049,259 @@ export default function Dashboard() {
 
                 {/* Filters */}
                 <div className={styles.filtersSection}>
-                    <select value={selectedLine} onChange={(e) => setSelectedLine(e.target.value)} className={styles.formSelect}>
-                        <option value="all">Tất cả dây chuyền</option>
-                        {LINES.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                    <select
+                        value={selectedLine}
+                        onChange={(e) => setSelectedLine(e.target.value)}
+                        className={styles.formSelect}
+                    >
+                        {lineOptions.map(option => (
+                            <option key={option.id} value={option.id}>
+                                {option.label}
+                            </option>
+                        ))}
                     </select>
-                    <input type="date" onChange={(e) => {
-                        const date = dayjs(e.target.value);
-                        setDateRange(prev => prev ? [date, prev[1]] : [date, date]);
-                    }} className={styles.formInput} />
-                    <input type="date" onChange={(e) => {
-                        const date = dayjs(e.target.value);
-                        setDateRange(prev => prev ? [prev[0], date] : [date, date]);
-                    }} className={styles.formInput} />
-                    <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={() => { setSelectedLine('all'); setDateRange(null); setTableStageName('all'); }}>
+                    <input
+                        type="date"
+                        value={dateRange?.[0]?.format('YYYY-MM-DD') ?? ''}
+                        onChange={(e) => handleDateInputChange('start', e.target.value)}
+                        className={styles.formInput}
+                    />
+                    <input
+                        type="date"
+                        value={dateRange?.[1]?.format('YYYY-MM-DD') ?? ''}
+                        onChange={(e) => handleDateInputChange('end', e.target.value)}
+                        className={styles.formInput}
+                    />
+                    <button
+                        className={`${styles.btn} ${styles.btnPrimary}`}
+                        onClick={handleResetFilters}
+                        type="button"
+                    >
                         Xóa lọc
                     </button>
                 </div>
 
+                {analyticsError && !analyticsLoading && (
+                    <div className={styles.inlineError}>
+                        <Text type="danger">{analyticsError}</Text>
+                    </div>
+                )}
+
                 {/* KPI Cards */}
                 <div className={styles.kpiGrid}>
-                    <div className={styles.kpiCard}>
-                        <div className={styles.kpiHeader}>
-                            <svg width="24" height="24" fill="#60a5fa" viewBox="0 0 16 16"><path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" /></svg>
-                            <span>Tổng sản lượng (m²)</span>
-                        </div>
-                        <p className={styles.kpiValue}>{kpiData.totalOriginalOutput.toLocaleString('vi-VN')}</p>
-                    </div>
-                    <div className={styles.kpiCard}>
-                        <div className={styles.kpiHeader}>
-                            <svg width="24" height="24" fill="#34d399" viewBox="0 0 16 16"><path d="M1 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3zm5-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5-5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2z" /></svg>
-                            <span>Hiệu suất TB toàn bộ</span>
-                        </div>
-                        <p className={styles.kpiValue}>{kpiData.overallEfficiency.toFixed(2)}%</p>
-                    </div>
-                    <div className={styles.kpiCard}>
-                        <div className={styles.kpiHeader}>
-                            <svg width="24" height="24" fill="#f87171" viewBox="0 0 16 16"><path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.146.146 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.163.163 0 0 1-.054.06.116.116 0 0 1-.066.017H1.146a.115.115 0 0 1-.066-.017.163.163 0 0 1-.054-.06.176.176 0 0 1 .002-.183L7.884 2.073a.147.147 0 0 1 .054-.057zm1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566z" /><path d="M7.002 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 5.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0L7.1 5.995z" /></svg>
-                            <span>Tỷ lệ hao phí TB</span>
-                        </div>
-                        <p className={styles.kpiValue}>{kpiData.overallWasteRate.toFixed(2)}%</p>
-                    </div>
-                    <div className={styles.kpiCard}>
-                        <div className={styles.kpiHeader}>
-                            <svg width="24" height="24" fill="#fbbf24" viewBox="0 0 16 16"><path d="M1 11a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3zm5-4a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V7zm5-5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1V2z" /></svg>
-                            <span>Dây chuyền hoạt động</span>
-                        </div>
-                        <p className={styles.kpiValue}>{kpiData.lines}</p>
-                    </div>
+                    {showSkeletons ? (
+                        Array.from({ length: 4 }).map((_, index) => (
+                            <div className={`${styles.kpiCard} ${styles.kpiCardSkeleton}`} key={`kpi-skeleton-${index}`}>
+                                <div className={styles.kpiHeader}>
+                                    <span className={`${styles.skeletonBlock} ${styles.skeletonLineSm}`} />
+                                    <span className={`${styles.skeletonBlock} ${styles.skeletonIcon}`} />
+                                </div>
+                                <div className={`${styles.skeletonBlock} ${styles.skeletonValueLg}`} />
+                            </div>
+                        ))
+                    ) : kpiCards.length > 0 ? (
+                        kpiCards.map((card, index) => {
+                            const accent = KPI_ACCENTS[index % KPI_ACCENTS.length];
+                            return (
+                                <div className={styles.kpiCard} key={card.key}>
+                                    <div className={styles.kpiHeader}>
+                                        <span>{card.label}</span>
+                                        <div
+                                            className={styles.kpiIcon}
+                                            style={{ background: `${accent}1a`, color: accent }}
+                                            aria-hidden="true"
+                                        >
+                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                                <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
+                                            </svg>
+                                        </div>
+                                    </div>
+                                    <p className={styles.kpiValue}>{formatKpiValue(card.value, card.unit)}</p>
+                                </div>
+                            );
+                        })
+                    ) : (
+                        <div className={styles.emptyState}>Chưa có dữ liệu KPI</div>
+                    )}
                 </div>
 
                 {/* Biểu đồ */}
                 <div className={styles.chartsSection}>
                     <div className={styles.mainCharts}>
-                        <div className={`${styles.card} ${styles.trendCard}`}>
-                            <div className={styles.cardHeader}>
-                                <div>
-                                    <p className={styles.cardSubtitle}>So sánh sản lượng thực tế với mục tiêu</p>
-                                    <h2 className={styles.cardTitle}>
-                                        {trendRange === '30d' ? 'Xu hướng sản xuất 30 ngày' : 'Xu hướng sản xuất 12 tháng'}
-                                    </h2>
-                                </div>
-                                <div className={styles.trendLegend}>
-                                    <span>
-                                        <span className={styles.legendDot} style={{ backgroundColor: '#1d4ed8' }} />
-                                        Thực tế
-                                    </span>
-                                    <span>
-                                        <span className={styles.legendDash} style={{ borderColor: '#0ea5e9' }} />
-                                        Trung bình
-                                    </span>
-                                </div>
-                                <div className={styles.cardHeaderControls}>
-                                    <div className={styles.rangeToggle} role="group" aria-label="Chọn khoảng thời gian xu hướng">
-                                        <button
-                                            type="button"
-                                            aria-pressed={trendRange === '30d'}
-                                            onClick={() => setTrendRange('30d')}
-                                            className={`${styles.rangeButton} ${trendRange === '30d' ? styles.rangeButtonActive : ''}`}
-                                        >
-                                            30 ngày
-                                        </button>
-                                        <button
-                                            type="button"
-                                            aria-pressed={trendRange === '12m'}
-                                            onClick={() => setTrendRange('12m')}
-                                            className={`${styles.rangeButton} ${trendRange === '12m' ? styles.rangeButtonActive : ''}`}
-                                        >
-                                            12 tháng
-                                        </button>
+                        {showSkeletons ? (
+                            <>
+                                <div className={`${styles.card} ${styles.trendCard}`}>
+                                    <div className={styles.cardHeader}>
+                                        <div className={styles.skeletonStack}>
+                                            <span className={`${styles.skeletonBlock} ${styles.skeletonLineSm}`} />
+                                            <span className={`${styles.skeletonBlock} ${styles.skeletonLineLg}`} />
+                                        </div>
+                                        <div className={styles.trendLegend}>
+                                            {Array.from({ length: 2 }).map((_, legendIndex) => (
+                                                <span key={`trend-legend-skeleton-${legendIndex}`} className={styles.skeletonLegendRow}>
+                                                    <span className={`${styles.skeletonBlock} ${styles.skeletonDot}`} />
+                                                    <span className={`${styles.skeletonBlock} ${styles.skeletonLineXs}`} />
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <div className={`${styles.cardHeaderControls} ${styles.skeletonChipRow}`}>
+                                            {Array.from({ length: skeletonRangeCount }).map((_, chipIndex) => (
+                                                <span
+                                                    key={`trend-chip-skeleton-${chipIndex}`}
+                                                    className={`${styles.skeletonBlock} ${styles.skeletonChip}`}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className={`${styles.chartContainer} ${styles.chartLarge}`}>
+                                        <div className={`${styles.skeletonBlock} ${styles.skeletonChart}`} />
                                     </div>
                                 </div>
-                            </div>
-                            <div className={styles.chartContainer} style={{ height: '420px' }}>
-                                <Line data={productionTrendData} options={productionTrendOptions} />
-                            </div>
-                        </div>
-                        <div className={styles.card}>
-                            <div className={styles.cardHeader}>
-                                <div>
-                                    <p className={styles.cardSubtitle}>Sản lượng và hiệu suất từng dây chuyền</p>
-                                    <h2 className={styles.cardTitle}>
-                                        {lineRange === '30d' ? 'Hiệu suất 30 ngày theo dây chuyền' : 'Hiệu suất 12 tháng theo dây chuyền'}
-                                    </h2>
+                                <div className={styles.card}>
+                                    <div className={styles.cardHeader}>
+                                        <div className={styles.skeletonStack}>
+                                            <span className={`${styles.skeletonBlock} ${styles.skeletonLineSm}`} />
+                                            <span className={`${styles.skeletonBlock} ${styles.skeletonLineLg}`} />
+                                        </div>
+                                        <div className={`${styles.cardHeaderControls} ${styles.skeletonChipRow}`}>
+                                            {Array.from({ length: skeletonRangeCount }).map((_, chipIndex) => (
+                                                <span
+                                                    key={`line-chip-skeleton-${chipIndex}`}
+                                                    className={`${styles.skeletonBlock} ${styles.skeletonChip}`}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className={`${styles.chartContainer} ${styles.chartMedium}`}>
+                                        <div className={`${styles.skeletonBlock} ${styles.skeletonChart}`} />
+                                    </div>
                                 </div>
-                                <div className={styles.rangeToggle} role="group" aria-label="Chọn khoảng thời gian hiệu suất">
-                                    <button
-                                        type="button"
-                                        aria-pressed={lineRange === '30d'}
-                                        onClick={() => setLineRange('30d')}
-                                        className={`${styles.rangeButton} ${lineRange === '30d' ? styles.rangeButtonActive : ''}`}
-                                    >
-                                        30 ngày
-                                    </button>
-                                    <button
-                                        type="button"
-                                        aria-pressed={lineRange === '12m'}
-                                        onClick={() => setLineRange('12m')}
-                                        className={`${styles.rangeButton} ${lineRange === '12m' ? styles.rangeButtonActive : ''}`}
-                                    >
-                                        12 tháng
-                                    </button>
+                            </>
+                        ) : (
+                            <>
+                                <div className={`${styles.card} ${styles.trendCard}`}>
+                                    <div className={styles.cardHeader}>
+                                        <div>
+                                            <p className={styles.cardSubtitle}>So sánh sản lượng thực tế với mục tiêu</p>
+                                            <h2 className={styles.cardTitle}>
+                                                {trendRangeLabel ? `Xu hướng sản xuất ${trendRangeLabel}` : 'Xu hướng sản xuất'}
+                                            </h2>
+                                        </div>
+                                        <div className={styles.trendLegend}>
+                                            <span>
+                                                <span className={styles.legendDot} style={{ backgroundColor: '#1d4ed8' }} />
+                                                Thực tế
+                                            </span>
+                                            <span>
+                                                <span className={styles.legendDash} style={{ borderColor: '#0ea5e9' }} />
+                                                Trung bình
+                                            </span>
+                                        </div>
+                                        <div className={styles.cardHeaderControls}>
+                                            <div className={styles.rangeToggle} role="group" aria-label="Chọn khoảng thời gian xu hướng">
+                                                {normalizedDatePresets.map((preset) => (
+                                                    <button
+                                                        key={preset.key}
+                                                        type="button"
+                                                        aria-pressed={trendRange === preset.key}
+                                                        onClick={() => handlePresetRangeChange(preset.key)}
+                                                        className={`${styles.rangeButton} ${trendRange === preset.key ? styles.rangeButtonActive : ''}`}
+                                                    >
+                                                        {preset.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className={`${styles.chartContainer} ${styles.chartLarge}`}>
+                                        <Line data={productionTrend.data} options={productionTrendOptions} />
+                                    </div>
                                 </div>
-                            </div>
-                            <div className={styles.chartContainer} style={{ height: '320px' }}>
-                                <Bar data={linePerformanceData} options={linePerformanceOptions} />
-                            </div>
-                        </div>
+                                <div className={styles.card}>
+                                    <div className={styles.cardHeader}>
+                                        <div>
+                                            <p className={styles.cardSubtitle}>Sản lượng và hiệu suất từng dây chuyền</p>
+                                            <h2 className={styles.cardTitle}>
+                                                {lineRangeLabel ? `Hiệu suất ${lineRangeLabel} theo dây chuyền` : 'Hiệu suất theo dây chuyền'}
+                                            </h2>
+                                        </div>
+                                        <div className={styles.rangeToggle} role="group" aria-label="Chọn khoảng thời gian hiệu suất">
+                                            {normalizedDatePresets.map((preset) => (
+                                                <button
+                                                    key={preset.key}
+                                                    type="button"
+                                                    aria-pressed={lineRange === preset.key}
+                                                    onClick={() => handleLineRangeChange(preset.key)}
+                                                    className={`${styles.rangeButton} ${lineRange === preset.key ? styles.rangeButtonActive : ''}`}
+                                                >
+                                                    {preset.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className={`${styles.chartContainer} ${styles.chartMedium}`}>
+                                        <Bar data={linePerformanceData} options={linePerformanceOptions} />
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
                     <div className={styles.sidePanels}>
-                        <div className={styles.card}>
-                            <div className={styles.cardHeader}>
-                                <div>
-                                    <p className={styles.cardSubtitle}>Tỷ lệ phân loại sản phẩm</p>
-                                    <h2 className={styles.cardTitle}>Phân bổ chất lượng</h2>
-                                </div>
-                            </div>
-                            <div className={styles.qualityWrapper}>
-                                <div className={styles.donutWrapper}>
-                                    <Doughnut data={qualitySummary.chartData} options={qualityChartOptions} />
-                                    <div className={styles.donutCenter}>
-                                        <span>Tổng</span>
-                                        <strong>{qualitySummary.total.toLocaleString('vi-VN')}</strong>
+                        {showSkeletons ? (
+                            <div className={styles.card}>
+                                <div className={styles.cardHeader}>
+                                    <div className={styles.skeletonStack}>
+                                        <span className={`${styles.skeletonBlock} ${styles.skeletonLineSm}`} />
+                                        <span className={`${styles.skeletonBlock} ${styles.skeletonLineLg}`} />
                                     </div>
                                 </div>
-                                <ul className={styles.qualityLegend}>
-                                    {qualitySummary.stats.map(item => (
-                                        <li key={item.key} className={styles.qualityLegendItem}>
-                                            <span className={styles.legendDot} style={{ backgroundColor: item.color }} />
-                                            <div>
-                                                <p>{item.label}</p>
-                                                <small>{item.percentage}% · {item.value.toLocaleString('vi-VN')}</small>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
+                                <div className={styles.qualityWrapper}>
+                                    <div className={styles.donutWrapper}>
+                                        <div className={`${styles.skeletonBlock} ${styles.skeletonDonut}`} />
+                                    </div>
+                                    <ul className={styles.qualityLegend}>
+                                        {Array.from({ length: 4 }).map((_, index) => (
+                                            <li key={`quality-legend-skeleton-${index}`} className={`${styles.qualityLegendItem} ${styles.qualityLegendItemSkeleton}`}>
+                                                <span className={`${styles.skeletonBlock} ${styles.skeletonDot}`} />
+                                                <div className={styles.skeletonStack}>
+                                                    <span className={`${styles.skeletonBlock} ${styles.skeletonLineMd}`} />
+                                                    <span className={`${styles.skeletonBlock} ${styles.skeletonLineXs}`} />
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
                             </div>
-                        </div>
+                        ) : (
+                            <div className={styles.card}>
+                                <div className={styles.cardHeader}>
+                                    <div>
+                                        <p className={styles.cardSubtitle}>Tỷ lệ phân loại sản phẩm</p>
+                                        <h2 className={styles.cardTitle}>Phân bổ chất lượng</h2>
+                                    </div>
+                                </div>
+                                <div className={styles.qualityWrapper}>
+                                    <div className={styles.donutWrapper}>
+                                        <Doughnut data={qualitySummary.chartData} options={qualityChartOptions} />
+                                        <div className={styles.donutCenter}>
+                                            <span>Tổng</span>
+                                            <strong>{qualitySummary.total.toLocaleString('vi-VN')}</strong>
+                                        </div>
+                                    </div>
+                                    <ul className={styles.qualityLegend}>
+                                        {qualitySummary.stats.map(item => (
+                                            <li key={item.key} className={styles.qualityLegendItem}>
+                                                <span className={styles.legendDot} style={{ backgroundColor: item.color }} />
+                                                <div>
+                                                    <p>{item.label}</p>
+                                                    <small>{item.percentage}% · {item.value.toLocaleString('vi-VN')}</small>
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
                         <div className={`${styles.card} ${styles.alertCard}`}>
                             <div className={styles.alertHeader}>
                                 <div>
@@ -1051,8 +1325,6 @@ export default function Dashboard() {
                                     </div>
                                 ))}
                             </div>
-
-
                             <div className={styles.alertMenu}>
                                 <Link href={'/production-history'}>Xem tất cả</Link>
                             </div>

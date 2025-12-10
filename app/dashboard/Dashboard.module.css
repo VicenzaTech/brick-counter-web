@@ -55,7 +55,128 @@
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.05);
 }
 
-/* === KPI Cards === */
+.inlineError {
+  margin-top: 12px;
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 14px;
+  background: #fff5f5;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+}
+
+@keyframes skeletonShimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.skeletonBlock {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  background-color: #e2e8f0;
+  border-radius: 12px;
+}
+
+.skeletonBlock::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0));
+  animation: skeletonShimmer 1.6s ease-in-out infinite;
+}
+
+.skeletonStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.skeletonLineXs {
+  width: 60px;
+  height: 10px;
+}
+
+.skeletonLineSm {
+  width: 140px;
+  height: 12px;
+}
+
+.skeletonLineMd {
+  width: 180px;
+  height: 14px;
+}
+
+.skeletonLineLg {
+  width: 240px;
+  height: 18px;
+}
+
+.skeletonValueLg {
+  width: 70%;
+  height: 36px;
+  border-radius: 16px;
+}
+
+.skeletonIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+}
+
+.skeletonChip {
+  width: 120px;
+  height: 36px;
+  border-radius: 999px;
+}
+
+.skeletonChipRow {
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.skeletonChipRow span {
+  flex: none;
+}
+
+.skeletonLegendRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.skeletonDot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+}
+
+.skeletonChart {
+  width: 100%;
+  height: 100%;
+  border-radius: 18px;
+}
+
+.skeletonDonut {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+}
+
+.kpiCardSkeleton {
+  pointer-events: none;
+}
+
+.qualityLegendItemSkeleton {
+  min-height: 56px;
+}
+
+/* === Layout Helpers === */
 .kpiGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -109,6 +230,16 @@
 .kpiDelta {
   font-size: 14px;
   color: #0f9d58;
+}
+
+.emptyState {
+  grid-column: 1 / -1;
+  background-color: #f8fafc;
+  border: 1px dashed #cbd5f5;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  color: #64748b;
 }
 
 /* === Charts Section === */
@@ -179,7 +310,15 @@
 
 .chartContainer {
   position: relative;
-  height: 400px; /* Default height */
+  width: 100%;
+}
+
+.chartLarge {
+  height: 420px;
+}
+
+.chartMedium {
+  height: 320px;
 }
 
 .trendLegend {
@@ -505,7 +644,28 @@
 }
 
 /* === Responsive Design === */
+@media (max-width: 1280px) {
+  .mainContent {
+    padding: 24px;
+  }
+  .chartsSection {
+    grid-template-columns: minmax(0, 1.7fr) minmax(280px, 1fr);
+    gap: 20px;
+  }
+  .chartLarge {
+    height: 380px;
+  }
+  .chartMedium {
+    height: 300px;
+  }
+}
+
 @media (max-width: 1024px) {
+  .dashboardHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
   .chartsSection {
     grid-template-columns: 1fr;
   }
@@ -518,6 +678,36 @@
   .qualityLegend {
     grid-template-columns: 1fr 1fr;
   }
+  .chartLarge {
+    height: 340px;
+  }
+  .chartMedium {
+    height: 280px;
+  }
+}
+
+@media (max-width: 900px) {
+  .filtersSection {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+  }
+  .cardHeader {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .cardHeaderControls,
+  .trendLegend {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .rangeToggle {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -527,27 +717,38 @@
   .dashboardHeader h1 {
     font-size: 24px;
   }
+  .filtersSection {
+    grid-template-columns: 1fr;
+  }
   .kpiGrid {
     grid-template-columns: 1fr;
   }
-  .chartContainer {
-    height: 300px;
+  .chartLarge {
+    height: 280px;
   }
-  .cardHeader {
-    flex-direction: column;
-    align-items: flex-start;
+  .chartMedium {
+    height: 240px;
   }
   .cardHeaderControls {
-    width: 100%;
     flex-direction: column;
     align-items: flex-start;
   }
-  .trendLegend {
-    width: 100%;
-    justify-content: flex-start;
+}
+
+@media (max-width: 480px) {
+  .filtersSection {
+    padding: 12px;
   }
   .rangeToggle {
+    padding: 2px;
+  }
+  .rangeButton {
+    flex: 1;
+    text-align: center;
+  }
+  .filtersSection select,
+  .filtersSection input,
+  .filtersSection button {
     width: 100%;
-    justify-content: space-between;
   }
 }
