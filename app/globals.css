@@ -23,9 +23,9 @@ body {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding-left: 72px;
-  background-color: #eef2ff;
-  transition: padding-left 0.15s ease;
+  padding-left: 280px;
+  background-color: #f7f7fb;
+  transition: padding-left 0.2s ease;
 }
 
 .main-content {
@@ -169,7 +169,7 @@ button {
 }
 
 .app-layout.app-layout--sidebar-expanded {
-  padding-left: 220px;
+  padding-left: 280px;
 }
 
 @media (max-width: 768px) {
