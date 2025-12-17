@@ -21,12 +21,35 @@ import type { ScriptableContext, TooltipItem } from 'chart.js';
 import dayjs, { Dayjs } from 'dayjs';
 // Import CSS Module
 import styles from './Dashboard.module.css';
+
 import { apiFetch } from '@/lib/http/http';
 import Link from 'next/link';
+import {
+    DEFAULT_DATE_PRESETS,
+    DEFAULT_LINE_OPTIONS,
+    DatePreset,
+    DetailedProductionRecord,
+    KpiCardPayload,
+    LineOption,
+    MOCK_ANALYTICS_RECORDS,
+    MOCK_DETAIL_TABLE_DATA,
+    MOCK_KPI_CARDS,
+    MOCK_LINE_OPTIONS,
+    PRESET_LABEL_OVERRIDES,
+    ProductionRecord,
+    RangePreset,
+    RunsAnalyticsResponse,
+    STAGE_NAME_META,
+    STOP_REASON_META,
+    StageNameKey,
+    StopReasonKey,
+    getActualOutput,
+    getMockDetailRows,
+} from '@/lib/mock/dashboard-data';
 
 const { Text } = Typography;
 
-// Đăng ký các thành phần của Chart.js
+// ??ng k? c?c th?nh ph?n c?a Chart.js
 ChartJS.register(
     CategoryScale,
     LinearScale,
@@ -40,57 +63,6 @@ ChartJS.register(
     ArcElement
 );
 
-// =================== ĐỊNH NGHĨA KIỂU DỮ LIỆU MỚI ===================
-type StopReasonKey =
-    | 'machine_error'
-    | 'change_product'
-    | 'shift_end'
-    | 'maintenance'
-    | 'other'
-    | 'manual_stop'
-    | 'end';
-
-type StageNameKey =
-    | 'Ép'
-    | 'Mài'
-    | 'Nung'
-    | 'Đóng hộp'
-    | 'Nung xương'
-    | 'Nung men'
-
-const STOP_REASON_META: Record<StopReasonKey, { label: string; color: string }> = {
-    machine_error: { label: 'Sự cố máy', color: 'red' },
-    change_product: { label: 'Đổi sản phẩm', color: 'orange' },
-    shift_end: { label: 'Kết thúc ca', color: 'cyan' },
-    maintenance: { label: 'Bảo trì', color: 'geekblue' },
-    other: { label: 'Lý do khác', color: 'default' },
-    manual_stop: { label: 'Dừng thủ công', color: 'purple' },
-    end: { label: 'Hoàn tất', color: 'green' },
-};
-
-const STAGE_NAME_META: Record<StageNameKey, { label: string; color: string }> = {
-    "Ép": { label: 'Ép', color: 'cyan' },
-    "Nung": { label: 'Nung', color: 'orange' },
-    "Mài": { label: 'Mài', color: 'cyan' },
-    "Nung men": { label: 'Nung men', color: 'geekblue' },
-    "Nung xương": { label: 'Nung xương', color: 'default' },
-    "Đóng hộp": { label: 'Đóng hộp', color: 'green' },
-};
-
-interface DetailedProductionRecord {
-    key: string;
-    startTime: string | null;
-    endTime: string | null;
-    productionLineName: string;
-    stageName: string;
-    productName: string;
-    quantity: number;
-    area: number;
-    createdBy?: string;
-    stopReason?: StopReasonKey;
-    isEmergency: boolean;
-    notes?: string;
-}
 interface ProductionStageHistoryResponse {
     id?: number | string;
     startTime?: string | null;
@@ -164,8 +136,6 @@ function detailTableReducer(state: DetailTableState, action: DetailTableAction):
     }
 }
 
-type RangePreset = '30d' | '12m';
-
 type AlertLevel = 'critical' | 'warning' | 'info';
 
 interface SystemAlert {
@@ -214,99 +184,6 @@ const SYSTEM_ALERTS: SystemAlert[] = [
     },
 ];
 
-// =================== HÀM TẠO DỮ LIỆU GIẢ CHI TIẾT ===================
-
-
-// Đăng ký các thành phần của Chart.js
-// ChartJS.register(
-//   CategoryScale,
-//   LinearScale,
-//   PointElement,
-//   LineElement,
-//   BarElement,
-//   ChartTitle,
-//   Tooltip,
-//   Legend,
-//   Filler,
-//   ArcElement
-// );
-
-// =================== ĐỊNH NGHĨA KIỂU DỮ LIỆU ===================
-interface ProductionRecord {
-    key: string;
-    date: string; // YYYY-MM-DD
-    lineName: string;
-    productType: string;
-    // Sản lượng gốc (100%)
-    originalOutput: number; // m²
-    // Sản lượng thành phẩm (chốt cuối cùng)
-    a1: number; // m²
-    a2: number; // m²
-    cut: number; // m²
-    waste1: number; // m²
-    waste2: number; // m²
-    scrap: number; // m²
-    // Hao phí theo công đoạn
-    waste_moc: number; // %
-    waste_lo: number; // %
-    waste_truoc_mai: number; // %
-    waste_thanh_pham: number; // %
-}
-
-const getActualOutput = (record: ProductionRecord) => {
-    const categorizedActual = record.a1 + record.a2 + record.cut;
-    return categorizedActual > 0 ? categorizedActual : record.originalOutput;
-};
-
-// =================== HÀM TẠO DỮ LIỆU GIẢ ===================
-interface LineOption {
-    id: string;
-    label: string;
-}
-
-interface DatePreset {
-    key: RangePreset;
-    label: string;
-}
-
-interface KpiCardPayload {
-    key: string;
-    label: string;
-    value: number;
-    unit?: string;
-}
-
-interface RunsAnalyticsResponse {
-    filters?: {
-        productionLine?: {
-            selected?: string;
-            options?: LineOption[];
-        };
-        dateRange?: {
-            presets?: DatePreset[];
-            selectedPreset?: RangePreset;
-            from?: string;
-            to?: string;
-        };
-    };
-    kpiCards?: KpiCardPayload[];
-    records?: ProductionRecord[];
-}
-
-const DEFAULT_LINE_OPTIONS: LineOption[] = [
-    { id: 'all', label: 'Tất cả dây chuyền' },
-];
-
-const DEFAULT_DATE_PRESETS: DatePreset[] = [
-    { key: '30d', label: '30 ngày gần nhất' },
-    { key: '12m', label: '12 tháng gần nhất' },
-];
-
-const PRESET_LABEL_OVERRIDES: Record<RangePreset, string> = {
-    '30d': '30 ngày gần nhất',
-    '12m': '12 tháng gần nhất',
-};
-
 const normalizePresetLabel = (preset: DatePreset): DatePreset => ({
     ...preset,
     label: PRESET_LABEL_OVERRIDES[preset.key] ?? preset.label,
@@ -322,24 +199,32 @@ const formatKpiValue = (value: number, unit?: string) => {
     return unit ? `${formatted} ${unit}` : formatted;
 };
 
-
 // =================== COMPONENT CHÍNH ===================
 export default function Dashboard() {
+    const useMockDashboardData = process.env.NEXT_PUBLIC_USE_MOCK_DASHBOARD !== 'false';
     const [activeFactory, setActiveFactory] = useState<'1' | '2'>('1');
     const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
     const [selectedLine, setSelectedLine] = useState<string>('all');
     const [tableStageName, setTableStageName] = useState<'all' | StageNameKey>('all');
     const [trendRange, setTrendRange] = useState<RangePreset>('30d');
     const [lineRange, setLineRange] = useState<RangePreset>('30d');
-    const [lineOptions, setLineOptions] = useState<LineOption[]>(DEFAULT_LINE_OPTIONS);
-    const [kpiCards, setKpiCards] = useState<KpiCardPayload[]>([]);
-    const [analyticsRecords, setAnalyticsRecords] = useState<ProductionRecord[]>([]);
+    const [lineOptions, setLineOptions] = useState<LineOption[]>(MOCK_LINE_OPTIONS);
+    const [kpiCards, setKpiCards] = useState<KpiCardPayload[]>(MOCK_KPI_CARDS);
+    const [analyticsRecords, setAnalyticsRecords] = useState<ProductionRecord[]>(MOCK_ANALYTICS_RECORDS);
     const [analyticsLoading, setAnalyticsLoading] = useState(false);
     const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-    const [hasLoadedAnalytics, setHasLoadedAnalytics] = useState(false);
+    const [hasLoadedAnalytics, setHasLoadedAnalytics] = useState(true);
     const [datePresets, setDatePresets] = useState<DatePreset[]>(DEFAULT_DATE_PRESETS.map(normalizePresetLabel));
     const [dateRangeSource, setDateRangeSource] = useState<'preset' | 'manual'>('preset');
-    const [detailTableState, detailTableDispatch] = useReducer(detailTableReducer, detailTableInitialState);
+    const [detailTableState, detailTableDispatch] = useReducer(
+        detailTableReducer,
+        detailTableInitialState,
+        (initial) => ({
+            ...initial,
+            data: MOCK_DETAIL_TABLE_DATA,
+            total: MOCK_DETAIL_TABLE_DATA.length,
+        })
+    );
     const hasSyncedInitialFilters = useRef(false);
     const stageNameOptions = useMemo(
         () => [
@@ -366,6 +251,18 @@ export default function Dashboard() {
         () => lineOptions.find(option => option.id === selectedLine),
         [lineOptions, selectedLine]
     );
+    const mockSelectedLineLabel = useMemo(() => {
+        if (selectedLine === 'all') {
+            return null;
+        }
+        return selectedLineOption?.label ?? null;
+    }, [selectedLine, selectedLineOption]);
+    const applyMockAnalyticsData = () => {
+        setAnalyticsRecords(MOCK_ANALYTICS_RECORDS);
+        setKpiCards(MOCK_KPI_CARDS);
+        setHasLoadedAnalytics(true);
+        setLineOptions(MOCK_LINE_OPTIONS);
+    };
     useEffect(() => {
         if (!lineOptions.length) {
             return;
@@ -385,6 +282,13 @@ export default function Dashboard() {
     };
 
     useEffect(() => {
+        if (useMockDashboardData) {
+            applyMockAnalyticsData();
+            setAnalyticsLoading(false);
+            setAnalyticsError(null);
+            return;
+        }
+
         const controller = new AbortController();
 
         const fetchAnalytics = async () => {
@@ -409,9 +313,18 @@ export default function Dashboard() {
                     return;
                 }
 
-                setAnalyticsRecords(payload.records ?? []);
-                setKpiCards(payload.kpiCards ?? []);
+                const hasRecords = Boolean(payload.records?.length);
+                const hasKpiCards = Boolean(payload.kpiCards?.length);
+                const resolvedRecords = hasRecords ? payload.records! : MOCK_ANALYTICS_RECORDS;
+                const resolvedKpiCards = hasKpiCards ? payload.kpiCards! : MOCK_KPI_CARDS;
+
+                setAnalyticsRecords(resolvedRecords);
+                setKpiCards(resolvedKpiCards);
                 setHasLoadedAnalytics(true);
+
+                if (!hasRecords || !hasKpiCards) {
+                    setLineOptions(MOCK_LINE_OPTIONS);
+                }
 
                 if (payload.filters?.productionLine?.options?.length) {
                     const incoming = payload.filters.productionLine.options;
@@ -451,7 +364,9 @@ export default function Dashboard() {
                 if (controller.signal.aborted) {
                     return;
                 }
-                setAnalyticsError(error instanceof Error ? error.message : 'Không thể tải dữ liệu phân tích');
+                console.warn('Không thể tải được dữ liệu phân tích, sử dụng dữ liệu mô phỏng.', error);
+                applyMockAnalyticsData();
+                setAnalyticsError(null);
             } finally {
                 if (!controller.signal.aborted) {
                     setAnalyticsLoading(false);
@@ -462,7 +377,7 @@ export default function Dashboard() {
         fetchAnalytics();
 
         return () => controller.abort();
-    }, [selectedLine, trendRange, dateRangeSource, manualRange]);
+    }, [selectedLine, trendRange, dateRangeSource, manualRange, useMockDashboardData]);
 
     const handlePresetRangeChange = (presetKey: RangePreset) => {
         setDateRangeSource('preset');
@@ -820,6 +735,7 @@ export default function Dashboard() {
         }),
         []
     );
+    
     const renderAlertIcon = (level: AlertLevel) => {
         switch (level) {
             case 'critical':
@@ -956,6 +872,19 @@ export default function Dashboard() {
 
 
     useEffect(() => {
+        if (useMockDashboardData) {
+            const fallbackRows = getMockDetailRows(mockSelectedLineLabel, tableStageName, dateRange);
+            detailTableDispatch({
+                type: 'SUCCESS',
+                payload: {
+                    data: fallbackRows,
+                    total: fallbackRows.length,
+                    resetPage: true,
+                },
+            });
+            return;
+        }
+
         const controller = new AbortController();
 
         const fetchData = async () => {
@@ -1001,11 +930,19 @@ export default function Dashboard() {
                     })
                 );
 
+                const resolvedTableRows = mappedPayload.length
+                    ? mappedPayload
+                    : getMockDetailRows(mockSelectedLineLabel, tableStageName, dateRange);
+
+                const resolvedTotal = mappedPayload.length
+                    ? payload?.meta?.total ?? mappedPayload.length
+                    : resolvedTableRows.length;
+
                 detailTableDispatch({
                     type: 'SUCCESS',
                     payload: {
-                        data: mappedPayload,
-                        total: payload?.meta?.total ?? mappedPayload.length,
+                        data: resolvedTableRows,
+                        total: resolvedTotal,
                         resetPage: true,
                     },
                 });
@@ -1013,10 +950,14 @@ export default function Dashboard() {
                 if (controller.signal.aborted) {
                     return;
                 }
+                console.warn('Không thể tải dữ liệu chi tiết sản xuất, sử dụng dữ liệu mô phỏng.', error);
+                const fallbackRows = getMockDetailRows(mockSelectedLineLabel, tableStageName, dateRange);
                 detailTableDispatch({
-                    type: 'FAIL',
+                    type: 'SUCCESS',
                     payload: {
-                        error: error instanceof Error ? error.message : 'Khong the tai du lieu',
+                        data: fallbackRows,
+                        total: fallbackRows.length,
+                        resetPage: true,
                     },
                 });
             }
@@ -1027,7 +968,7 @@ export default function Dashboard() {
         return () => {
             controller.abort();
         };
-    }, [selectedLine, dateRange, tableStageName, activeFactory]);
+    }, [selectedLine, dateRange, tableStageName, activeFactory, mockSelectedLineLabel, useMockDashboardData]);
     // --- Render giao diện ---
     return (
         // Sử dụng styles từ CSS Module

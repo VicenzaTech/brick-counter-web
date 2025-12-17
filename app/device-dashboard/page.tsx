@@ -134,7 +134,7 @@ export interface ProductionLineInfo {
 // ============================================================================
 // Constants & helpers
 // ============================================================================
-const API_BASE_URL = 'http://localhost:5555';
+const WS_BASE_URL = process.env.NEXT_PUBLIC_WS_BASE_URL ?? 'http://localhost:5555';
 
 const getVariant = (
     value: number,
@@ -324,7 +324,7 @@ export function DeviceDashboardPage({
     //     isConnected,
     // } = useDeviceDashboardWebSocket(INITIAL_DEVICES_LINE1, {
     //     enabled: true,
-    //     baseUrl: API_BASE_URL,
+    //     baseUrl: WS_BASE_URL,
     //     onMessage: handleDeviceTelemetry,
     // });
     const { wsDevicesLine1, isConnected } = { isConnected: false, wsDevicesLine1: [] }
@@ -332,7 +332,7 @@ export function DeviceDashboardPage({
         lineMetrics,
         deviceMetrics,
         isConnected: analyticsConnected,
-    } = useAnalytics(API_BASE_URL);
+    } = useAnalytics(WS_BASE_URL);
 
     const enhancedDevicesLine1 = useMemo(
         () => mergeDeviceWithAnalytics(wsDevicesLine1, deviceMetrics),
@@ -350,7 +350,7 @@ export function DeviceDashboardPage({
         deviceId: 0,
         lineId: selectedLineId ?? 0,
         clusters: deviceClusters,
-        baseUrl: API_BASE_URL,
+        baseUrl: WS_BASE_URL,
         onTelemetry: handleDeviceTelemetry,
     });
 
@@ -369,9 +369,7 @@ export function DeviceDashboardPage({
     useEffect(() => {
         const fetchProductionLines = async () => {
             try {
-                const response = await apiFetch(
-                    `${API_BASE_URL}/production-lines`,
-                );
+                const response = await apiFetch('/production-lines');
                 const json = await response.json();
 
                 const lines: ProductionLineInfo[] = Array.isArray(json)
@@ -398,9 +396,7 @@ export function DeviceDashboardPage({
     const fetchDeviceClusters = useCallback(async (lineId: number) => {
         try {
             setClusterLoading(true);
-            const res = await apiFetch(
-                `${API_BASE_URL}/api/device-clusters/line/${lineId}`,
-            );
+            const res = await apiFetch(`/device-clusters/line/${lineId}`);
             const json = await res.json();
 
             const clusters: any[] = Array.isArray(json)
@@ -552,14 +548,11 @@ export function DeviceDashboardPage({
     const handleSaveConfig = async (interval: number) => {
         if (!configModal) return;
         try {
-            const response = await apiFetch(
-                `${API_BASE_URL}/api/mqtt/device-command/config-line/${configModal.lineId}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ interval }),
-                },
-            );
+            const response = await apiFetch(`/mqtt/device-command/config-line/${configModal.lineId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ interval }),
+            });
 
             const result = await response.json();
             if (result.success) {
@@ -587,13 +580,10 @@ export function DeviceDashboardPage({
         setResetMessage(null);
 
         try {
-            const response = await apiFetch(
-                `${API_BASE_URL}/api/mqtt/device-command/reset-counter/${clusterId}`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                },
-            );
+            const response = await apiFetch(`/mqtt/device-command/reset-counter/${clusterId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+            });
 
             const result = await response.json();
             if (result.success) {
