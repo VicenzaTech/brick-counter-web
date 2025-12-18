@@ -1,5 +1,6 @@
 import type { BrickType, CreateBrickTypeDto } from "@/lib/types/brick-type";
 import { useState, type FormEvent } from "react";
+import { useProductionLines } from "@/hooks/useProductionLines";
 import styles from "./BrickTypeForm.module.css";
 import { Button } from "@/components/Button/Button";
 
@@ -16,6 +17,8 @@ export function BrickTypeForm({
   onCancel,
   loading = false,
 }: BrickTypeFormProps) {
+  const { data: productionLines } = useProductionLines();
+
   const [formData, setFormData] = useState<CreateBrickTypeDto>({
     name: brick?.name || "",
     nameEnglish: brick?.nameEnglish || "",
@@ -34,6 +37,7 @@ export function BrickTypeForm({
     notes: brick?.notes || "",
     workshop: brick?.workshop || "",
     productionLine: brick?.productionLine || "",
+    activeProductionLineId: brick?.activeProductionLineId || undefined,
     contractCycle: brick?.contractCycle || undefined,
     kilnOutput: brick?.kilnOutput || undefined,
     qualityProductOutput: brick?.qualityProductOutput || undefined,
@@ -55,6 +59,9 @@ export function BrickTypeForm({
     let finalValue: any = value;
 
     if (type === "number") {
+      finalValue = value === "" ? undefined : Number(value);
+    } else if (name === "activeProductionLineId") {
+      // Convert to number for production line ID
       finalValue = value === "" ? undefined : Number(value);
     }
 
@@ -224,7 +231,37 @@ export function BrickTypeForm({
             name="productionLine"
             value={formData.productionLine || ""}
             onChange={handleChange}
+            placeholder="Tên dây chuyền (tùy chọn)"
           />
+        </div>
+
+        <div className={styles.formGroup}>
+          <label className={styles.label}>
+            Dây chuyền sản xuất *
+            <span
+              style={{
+                fontSize: "0.85em",
+                color: "#666",
+                marginLeft: "0.5rem",
+              }}
+            >
+              (Bắt buộc để kích hoạt)
+            </span>
+          </label>
+          <select
+            className={styles.input}
+            name="activeProductionLineId"
+            value={formData.activeProductionLineId || ""}
+            onChange={handleChange}
+            required
+          >
+            <option value="">-- Chọn dây chuyền --</option>
+            {productionLines?.map((line) => (
+              <option key={line.id} value={line.id}>
+                {line.name} (ID: {line.id})
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className={styles.formGroup}>

@@ -9,6 +9,8 @@ import {
   useCreateBrickType,
   useUpdateBrickType,
   useDeleteBrickType,
+  useActivateBrickType,
+  useDeactivateBrickType,
 } from "@/hooks/useBrickTypes";
 import type { BrickType, CreateBrickTypeDto } from "@/lib/types/brick-type";
 import { BrickTypeForm } from "@/components/BrickTypes/BrickTypeForm";
@@ -50,6 +52,8 @@ export default function BrickTypesPage() {
   const createMutation = useCreateBrickType();
   const updateMutation = useUpdateBrickType();
   const deleteMutation = useDeleteBrickType();
+  const activateMutation = useActivateBrickType();
+  const deactivateMutation = useDeactivateBrickType();
 
   // Filter States
   const [searchTerm, setSearchTerm] = useState("");
@@ -220,8 +224,59 @@ export default function BrickTypesPage() {
   };
 
   const handleToggleActive = async (id: number, isActive: boolean) => {
-    // Implement toggle active status
-    console.log("Toggle active:", id, isActive);
+    const brick = brickTypes.find((b) => b.id === id);
+    if (!brick) return;
+
+    console.log("Toggle active - brick data:", {
+      id: brick.id,
+      name: brick.name,
+      productionLine: brick.productionLine,
+      activeProductionLineId: brick.activeProductionLineId,
+      isActive: brick.isActive,
+      newIsActive: isActive,
+    });
+
+    // Kiểm tra xem có activeProductionLineId không
+    if (!brick.activeProductionLineId) {
+      console.error("Missing activeProductionLineId for brick:", brick);
+      alert(
+        `Không thể ${
+          isActive ? "kích hoạt" : "ngừng sản xuất"
+        }: Chưa có ID dây chuyền sản xuất được gán.\n\n` +
+          `Thông tin hiện tại:\n` +
+          `- Tên dây chuyền: ${brick.productionLine || "Chưa có"}\n` +
+          `- ID dây chuyền: ${brick.activeProductionLineId || "Chưa có"}\n\n` +
+          `Vui lòng chỉnh sửa dòng gạch và gán ID dây chuyền sản xuất.`
+      );
+      return;
+    }
+
+    try {
+      if (isActive) {
+        // Activating
+        const result = await activateMutation.mutate(id, {
+          productionLineId: brick.activeProductionLineId,
+          status: "producing",
+        });
+        console.log("Activate result:", result);
+      } else {
+        // Deactivating
+        const result = await deactivateMutation.mutate(id, {
+          productionLineId: brick.activeProductionLineId,
+        });
+        console.log("Deactivate result:", result);
+      }
+      refetch();
+    } catch (error) {
+      console.error("Failed to toggle brick type status:", error);
+      alert(
+        `Lỗi: ${
+          error instanceof Error
+            ? error.message
+            : "Không thể thay đổi trạng thái"
+        }`
+      );
+    }
   };
 
   const handleCopy = (brick: BrickType) => {

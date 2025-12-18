@@ -280,32 +280,67 @@ export function BrickTypeList({
         </div>
       ) : (
         <div className={styles.brickList}>
-          {Object.entries(groupedBricks).map(([groupName, bricks]) => (
-            <div key={groupName} className={styles.brickGroup}>
-              {groupBy !== "none" && (
-                <div className={styles.groupHeader}>
-                  <h3>{groupName}</h3>
-                  <span className={styles.groupCount}>{bricks.length}</span>
-                </div>
-              )}
-              {bricks.map((brick) => (
-                <BrickTypeCard
-                  key={brick.id}
-                  brick={brick}
-                  isSelected={brick.id === selectedBrickId}
-                  isCompareMode={compareMode}
-                  isSelectedForCompare={selectedForCompare.has(brick.id)}
-                  onSelect={onSelectBrick}
-                  onToggleCompare={onToggleCompare}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onCopy={onCopy}
-                  onToggleActive={onToggleActive}
-                  canUpdate={canUpdate}
-                />
-              ))}
-            </div>
-          ))}
+          {groupBy === "none"
+            ? // Render cards directly without group wrapper
+              (() => {
+                console.log(
+                  "Rendering direct cards, count:",
+                  filteredAndSortedBricks.length
+                );
+                return filteredAndSortedBricks.map((brick) => (
+                  <BrickTypeCard
+                    key={brick.id}
+                    brick={brick}
+                    isSelected={brick.id === selectedBrickId}
+                    isCompareMode={compareMode}
+                    isSelectedForCompare={selectedForCompare.has(brick.id)}
+                    onSelect={onSelectBrick}
+                    onToggleCompare={onToggleCompare}
+                    onEdit={onEdit}
+                    onDelete={onDelete}
+                    onCopy={onCopy}
+                    onToggleActive={onToggleActive}
+                    canUpdate={canUpdate}
+                  />
+                ));
+              })()
+            : // Render with groups
+              (() => {
+                console.log(
+                  "Rendering grouped cards, groups:",
+                  Object.keys(groupedBricks)
+                );
+                return Object.entries(groupedBricks).map(
+                  ([groupName, bricks]) => (
+                    <div key={groupName} className={styles.brickGroup}>
+                      <div className={styles.groupHeader}>
+                        <h3>{groupName}</h3>
+                        <span className={styles.groupCount}>
+                          {bricks.length}
+                        </span>
+                      </div>
+                      {bricks.map((brick) => (
+                        <BrickTypeCard
+                          key={brick.id}
+                          brick={brick}
+                          isSelected={brick.id === selectedBrickId}
+                          isCompareMode={compareMode}
+                          isSelectedForCompare={selectedForCompare.has(
+                            brick.id
+                          )}
+                          onSelect={onSelectBrick}
+                          onToggleCompare={onToggleCompare}
+                          onEdit={onEdit}
+                          onDelete={onDelete}
+                          onCopy={onCopy}
+                          onToggleActive={onToggleActive}
+                          canUpdate={canUpdate}
+                        />
+                      ))}
+                    </div>
+                  )
+                );
+              })()}
         </div>
       )}
 
