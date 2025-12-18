@@ -26,7 +26,7 @@ const navItems = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Tổng quan' },
     { href: '/production-history', icon: BarChart2, label: 'Lịch sử sản xuất' },
     { href: '/production-tracker', icon: Factory, label: 'Theo dõi sản xuất' },
-    { href: '/brick-types', icon: Database, label: 'Quản lý sản xuất' },
+    { href: '/brick-types', icon: Database, label: 'Quản lý dòng gạch' },
     { href: '/activity-logs', icon: Notebook, label: 'Nhật ký' },
     { href: '/device-dashboard', icon: Settings, label: 'Cài đặt' },
 ];
