@@ -55,32 +55,34 @@ export function BrickTypeCard({
       </div>
 
       <div className={styles.cardBody}>
-        {brick.productionLine && (
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Dây chuyền:</span>
-            <span className={styles.infoValue}>{brick.productionLine}</span>
-          </div>
-        )}
+        <div className={styles.infoRow}>
+          <span className={styles.infoLabel}>Dây chuyền:</span>
+          <span className={styles.infoValue}>
+            {brick.productionLine || "-"}
+          </span>
+        </div>
 
-        {brick.contractCycle !== undefined && (
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Chu kỳ khoán:</span>
-            <span className={styles.infoValue}>{brick.contractCycle} phút</span>
-          </div>
-        )}
+        <div className={styles.infoRow}>
+          <span className={styles.infoLabel}>Chu kỳ khoán:</span>
+          <span className={styles.infoValue}>
+            {brick.contractCycle !== undefined
+              ? `${brick.contractCycle} phút`
+              : "-"}
+          </span>
+        </div>
 
-        {brick.kilnOutput !== undefined && (
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>SL ra lò:</span>
-            <span className={styles.infoValue}>
-              {formatNumber(brick.kilnOutput)} m²
-            </span>
-          </div>
-        )}
+        <div className={styles.infoRow}>
+          <span className={styles.infoLabel}>SL ra lò:</span>
+          <span className={styles.infoValue}>
+            {brick.kilnOutput !== undefined
+              ? `${formatNumber(brick.kilnOutput)} m²`
+              : "-"}
+          </span>
+        </div>
 
-        {brick.qualityStandard && (
-          <div className={styles.infoRow}>
-            <span className={styles.infoLabel}>Tiêu chuẩn:</span>
+        <div className={styles.infoRow}>
+          <span className={styles.infoLabel}>Tiêu chuẩn:</span>
+          {brick.qualityStandard ? (
             <span
               className={`${styles.badge} ${
                 styles[getQualityBadgeClass(brick.qualityStandard)]
@@ -88,15 +90,24 @@ export function BrickTypeCard({
             >
               {brick.qualityStandard}
             </span>
-          </div>
-        )}
+          ) : (
+            <span className={styles.infoValue}>-</span>
+          )}
+        </div>
 
-        {brick.isActive && (
-          <div className={styles.statusBadge}>
-            <span className={styles.statusDot} />
-            Đang sản xuất
-          </div>
-        )}
+        <div className={styles.statusBadgeRow}>
+          {brick.isActive ? (
+            <div className={styles.statusBadge}>
+              <span className={styles.statusDot} />
+              Đang sản xuất
+            </div>
+          ) : (
+            <div className={styles.statusBadgeInactive}>
+              <span className={styles.statusDotInactive} />
+              Ngừng sản xuất
+            </div>
+          )}
+        </div>
       </div>
 
       {canUpdate && (

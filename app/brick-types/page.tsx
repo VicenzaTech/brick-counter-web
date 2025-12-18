@@ -185,6 +185,11 @@ export default function BrickTypesPage() {
       refetch();
     } catch (error) {
       console.error("Failed to save brick type", error);
+      alert(
+        `Lỗi: ${
+          error instanceof Error ? error.message : "Không thể lưu dữ liệu"
+        }`
+      );
     }
   };
 
@@ -206,8 +211,7 @@ export default function BrickTypesPage() {
   };
 
   const handleEnterCompareMode = () => {
-    setCompareMode(true);
-    setSelectedForCompare(new Set());
+    setCompareMode(false); // Exit compare mode to show comparison panel
   };
 
   const handleExitCompareMode = () => {
@@ -242,7 +246,7 @@ export default function BrickTypesPage() {
   return (
     <div className={styles.pageWrapper}>
       {/* Compare Mode View */}
-      {compareMode && selectedForCompare.size > 0 ? (
+      {!compareMode && selectedForCompare.size > 0 ? (
         <ComparePanel
           brickIds={Array.from(selectedForCompare)}
           bricks={brickTypes}
@@ -280,14 +284,25 @@ export default function BrickTypesPage() {
                 </button>
               </div>
 
-              {/* Compare Button */}
-              {viewMode === "grid" && (
-                <Button
-                  typeBtn="secondaryButton"
-                  onClick={handleEnterCompareMode}
-                >
+              {/* Compare Button - Works for both table and grid */}
+              <label className={styles.compareToggle}>
+                <input
+                  type="checkbox"
+                  checked={compareMode}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setCompareMode(true);
+                    } else {
+                      handleExitCompareMode();
+                    }
+                  }}
+                />
+                <span>Chế độ so sánh</span>
+              </label>
+              {compareMode && selectedForCompare.size >= 2 && (
+                <Button onClick={handleEnterCompareMode}>
                   <GitCompare size={18} style={{ marginRight: "0.5rem" }} />
-                  So sánh
+                  Xem so sánh ({selectedForCompare.size})
                 </Button>
               )}
 
@@ -441,6 +456,24 @@ export default function BrickTypesPage() {
                   <table className={styles.table}>
                     <thead>
                       <tr>
+                        {compareMode && (
+                          <th style={{ width: "50px" }}>
+                            <input
+                              type="checkbox"
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  const idsToSelect = paginatedBricks
+                                    .slice(0, 5)
+                                    .map((b) => b.id);
+                                  setSelectedForCompare(new Set(idsToSelect));
+                                } else {
+                                  setSelectedForCompare(new Set());
+                                }
+                              }}
+                              title="Chọn tất cả"
+                            />
+                          </th>
+                        )}
                         <th style={{ width: "60px" }}>STT</th>
                         <th>Tên sản phẩm (EN)</th>
                         <th>Kích thước</th>
@@ -455,7 +488,7 @@ export default function BrickTypesPage() {
                       {loading ? (
                         <tr>
                           <td
-                            colSpan={8}
+                            colSpan={compareMode ? 9 : 8}
                             style={{ textAlign: "center", padding: "3rem" }}
                           >
                             Đang tải dữ liệu...
@@ -464,7 +497,7 @@ export default function BrickTypesPage() {
                       ) : paginatedBricks.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={8}
+                            colSpan={compareMode ? 9 : 8}
                             style={{ textAlign: "center", padding: "3rem" }}
                           >
                             Không tìm thấy dữ liệu phù hợp
@@ -472,7 +505,30 @@ export default function BrickTypesPage() {
                         </tr>
                       ) : (
                         paginatedBricks.map((brick, index) => (
-                          <tr key={brick.id}>
+                          <tr
+                            key={brick.id}
+                            className={
+                              selectedForCompare.has(brick.id)
+                                ? styles.selectedRow
+                                : ""
+                            }
+                          >
+                            {compareMode && (
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedForCompare.has(brick.id)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleCompare(brick.id);
+                                  }}
+                                  disabled={
+                                    !selectedForCompare.has(brick.id) &&
+                                    selectedForCompare.size >= 5
+                                  }
+                                />
+                              </td>
+                            )}
                             <td className={styles.colIndex}>
                               {String(
                                 (currentPage - 1) * pageSize + index + 1

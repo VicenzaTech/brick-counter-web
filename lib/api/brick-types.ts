@@ -62,6 +62,7 @@ export const brickTypesApi = {
    * Cap nhat loai gach
    */
   async update(id: number, data: UpdateBrickTypeDto): Promise<BrickType> {
+    console.log('Updating brick type:', { id, data });
     const response = await apiFetch(`${BRICK_TYPES_ENDPOINT}/${id}`, {
       method: "PUT",
       headers: {
@@ -69,10 +70,30 @@ export const brickTypesApi = {
       },
       body: JSON.stringify(data),
     });
+    
+    console.log('Update response status:', response.status, response.statusText);
+    
     if (!response.ok) {
-      throw new Error(`Failed to update brick type ${id}`);
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`Failed to update brick type ${id}:`, {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorData,
+        data: data,
+      });
+      
+      // Handle specific error messages
+      if (response.status === 403) {
+        throw new Error("Bạn không có quyền cập nhật dòng gạch");
+      }
+      if (response.status === 404) {
+        throw new Error("Không tìm thấy dòng gạch");
+      }
+      
+      throw new Error(errorData.message || `Không thể cập nhật dòng gạch (${response.status})`);
     }
     const result = await response.json();
+    console.log('Update result:', result);
     return result.data || result;
   },
 

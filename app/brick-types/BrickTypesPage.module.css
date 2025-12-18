@@ -71,6 +71,34 @@
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+/* Compare Toggle */
+.compareToggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  background-color: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #334155;
+}
+
+.compareToggle:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.compareToggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
 /* Grid Container */
 .gridContainer {
   display: grid;
@@ -308,6 +336,15 @@
 
 .table tr:hover {
   background-color: #f8fafc;
+}
+
+.table tr.selectedRow {
+  background-color: #eff6ff;
+  border-left: 3px solid #3b82f6;
+}
+
+.table tr.selectedRow:hover {
+  background-color: #dbeafe;
 }
 
 /* Column specific styles */
