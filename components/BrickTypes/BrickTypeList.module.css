@@ -9,51 +9,57 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 1.5rem 1.5rem 1rem;
+  border-bottom: 2px solid #f3f4f6;
+  background: linear-gradient(to bottom, #ffffff 0%, #f9fafb 100%);
 }
 
 .listTitle {
-  font-size: 1.25rem;
-  font-weight: 600;
+  font-size: 1.5rem;
+  font-weight: 700;
   color: #111827;
   margin: 0 0 0.25rem 0;
+  letter-spacing: -0.02em;
 }
 
 .listSubtitle {
   font-size: 0.875rem;
   color: #6b7280;
   margin: 0;
+  font-weight: 500;
 }
 
 .createButton {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  background: #3b82f6;
+  padding: 0.65rem 1.25rem;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
 .createButton:hover {
-  background: #2563eb;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .compareBar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0.75rem 1.5rem;
-  background: #eff6ff;
-  border-bottom: 1px solid #bfdbfe;
+  padding: 0.875rem 1.5rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  border-bottom: 2px solid #bfdbfe;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 600;
   color: #1e40af;
 }
 
@@ -62,6 +68,7 @@
   gap: 0.5rem;
   padding: 1rem 1.5rem;
   border-bottom: 1px solid #e5e7eb;
+  background: #fafafa;
 }
 
 .searchInput {
@@ -69,10 +76,16 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
+  padding: 0.625rem 1rem;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
   background: white;
+  transition: all 0.2s ease;
+}
+
+.searchInput:focus-within {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
 .searchInput input {
@@ -80,6 +93,7 @@
   border: none;
   outline: none;
   font-size: 0.875rem;
+  color: #111827;
 }
 
 .searchInput input::placeholder {
@@ -90,24 +104,25 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: 1px solid #d1d5db;
+  width: 40px;
+  height: 40px;
+  border: 2px solid #e5e7eb;
   background: white;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   color: #6b7280;
 }
 
 .iconButton:hover {
-  background: #f3f4f6;
-  border-color: #9ca3af;
+  border-color: #3b82f6;
+  background: #eff6ff;
+  color: #3b82f6;
 }
 
 .iconButton.active {
-  background: #3b82f6;
   border-color: #3b82f6;
+  background: #3b82f6;
   color: white;
 }
 

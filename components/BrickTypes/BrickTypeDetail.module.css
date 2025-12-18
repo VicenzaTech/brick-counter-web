@@ -1,6 +1,6 @@
 .detailContainer {
-  padding: 24px;
-  background: #fff;
+  padding: 2rem;
+  background: #ffffff;
   height: 100%;
   overflow-y: auto;
 }
@@ -9,27 +9,31 @@
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 32px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid #e5e7eb;
+  margin-bottom: 2rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 3px solid #f3f4f6;
 }
 
 .detailTitle {
-  font-size: 32px;
-  font-weight: 700;
+  font-size: 2rem;
+  font-weight: 800;
   color: #111827;
-  margin: 0 0 4px 0;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 
 .detailSubtitle {
-  font-size: 14px;
+  font-size: 0.95rem;
   color: #6b7280;
   margin: 0;
+  font-weight: 500;
 }
 
 .detailActions {
   display: flex;
-  gap: 12px;
+  gap: 0.75rem;
+  flex-shrink: 0;
 }
 
 .standardsButton,
@@ -37,70 +41,86 @@
 .deleteButton {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
   border: none;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 500;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .standardsButton {
-  background: #10b981;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
 }
 
 .standardsButton:hover {
-  background: #059669;
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
 }
 
 .editButton {
-  background: #3b82f6;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
 }
 
 .editButton:hover {
-  background: #2563eb;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
 }
 
 .deleteButton {
-  background: #ef4444;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
 }
 
 .deleteButton:hover {
-  background: #dc2626;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
 }
 
 .summaryRow {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 24px;
-  margin-bottom: 24px;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
 }
 
 .summaryCard {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 20px;
+  background: linear-gradient(135deg, #ffffff 0%, #f9fafb 100%);
+  border: 2px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all 0.2s ease;
+}
+
+.summaryCard:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
 }
 
 .summaryCard h3 {
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 1.125rem;
+  font-weight: 700;
   color: #111827;
-  margin: 0 0 16px 0;
-  padding-bottom: 12px;
-  border-bottom: 1px solid #e5e7eb;
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 2px solid #e5e7eb;
 }
 
 .summaryGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 16px;
+  grid-template-columns: 1fr;
+  gap: 0.875rem;
 }
 
 .summaryItem {
