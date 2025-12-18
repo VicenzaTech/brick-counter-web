@@ -1,9 +1,6 @@
 import "./globals.css";
-import Navbar from "@/components/Navbar/Navbar";
-import Footer from "@/components/Footer/Footer";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import Loading from "@/components/Loading/Loading";
-import PaddingContent from "@/components/PaddingContent/PaddingContent";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -21,15 +18,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                     initialUser={initialUser}
                     fallback={<Loading />}
                 >
-                    <div className="app-layout">
-                        <Navbar />
-                        <main className="main-content">
-                            <PaddingContent>
-                                {children}
-                            </PaddingContent>
-                        </main>
-                        {/* <Footer /> */}
-                    </div>
+                    {children}
                 </AuthProvider>
             </body>
         </html>

@@ -10,63 +10,27 @@
   color: #374151;
 }
 
-.input {
-  border-radius: 10px;
-  border: 1px solid #d1d5db;
-  padding: 0.7rem 0.85rem;
-  font-size: 0.95rem;
-  outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease,
-    background-color 0.15s ease;
-  background-color: #f9fafb;
-}
-
-.input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
-  background-color: #ffffff;
-}
-
-.input::placeholder {
-  color: #9ca3af;
-}
-
-.inputError {
-  border-color: #dc2626;
-  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.2);
-}
-
-.errorText {
-  font-size: 0.8rem;
-  color: #dc2626;
-}
-.fieldGroup {
+.inputWrapper {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-
-.label {
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #374151;
+  align-items: center;
 }
 
 .input {
-  border-radius: 10px;
+  width: 100%;
+  border-radius: 8px; /* Refined radius */
   border: 1px solid #d1d5db;
-  padding: 0.7rem 0.85rem;
+  padding: 0.75rem 0.875rem; /* Better padding */
   font-size: 0.95rem;
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease,
-    background-color 0.15s ease;
-  background-color: #f9fafb;
+  transition: all 0.2s ease;
+  background-color: #ffffff;
+  color: #111827;
 }
 
 .input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.25);
-  background-color: #ffffff;
+  border-color: #4f46e5; /* Indigo-600 */
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
 }
 
 .input::placeholder {
@@ -74,11 +38,35 @@
 }
 
 .inputError {
-  border-color: #dc2626;
-  box-shadow: 0 0 0 1px rgba(220, 38, 38, 0.2);
+  border-color: #ef4444;
+}
+
+.inputError:focus {
+  border-color: #ef4444;
+  box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.1);
+}
+
+.toggleButton {
+  position: absolute;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border-radius: 4px;
+}
+
+.toggleButton:hover {
+  color: #374151;
+  background-color: #f3f4f6;
 }
 
 .errorText {
   font-size: 0.8rem;
-  color: #dc2626;
+  color: #ef4444;
+  margin-top: 0.25rem;
 }

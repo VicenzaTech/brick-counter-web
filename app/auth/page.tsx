@@ -4,12 +4,14 @@ import { Formik, Form } from 'formik';
 import * as Yup from 'yup';
 import styles from './page.module.css';
 import { InputField } from '@/components/InputField/InputField';
-import { Card, CardHeader } from '@/components/Card/Card';
 import { Button } from '@/components/Button/Button';
 import { AuthUser, useAuthStore } from '@/store/auth.store';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { apiFetch } from '@/lib/http/http';
+import Link from 'next/link';
+import Image from 'next/image';
+import { Box } from 'lucide-react';
 
 interface LoginFormValues {
     identifier: string;
@@ -23,7 +25,7 @@ const initialValues: LoginFormValues = {
 
 const LoginSchema = Yup.object().shape({
     identifier: Yup.string()
-        .required('Vui lòng nhập tên đăng nhập')
+        .required('Vui lòng nhập email hoặc tên đăng nhập')
         .trim(),
     password: Yup.string()
         .required('Vui lòng nhập mật khẩu')
@@ -38,8 +40,6 @@ export default function Page() {
     const handleSubmit = async (values: LoginFormValues) => {
         try {
             setLoginError(null);
-
-   
             const loginResult = await apiFetch(`/auth/login`, {
                 method: 'POST',
                 body: JSON.stringify(values),
@@ -47,7 +47,6 @@ export default function Page() {
                     'Content-Type': 'application/json',
                 },
             });
-            console.log(loginResult);
 
             if (!loginResult.ok) {
                 let message =
@@ -58,7 +57,7 @@ export default function Page() {
                         message = errorBody.message;
                     }
                 } catch {
-                    // ignore parse error, dùng message mặc định
+                    // ignore parse error
                 }
                 setLoginError(message);
                 return;
@@ -69,13 +68,10 @@ export default function Page() {
                 user?: AuthUser;
                 sessionId?: string;
             };
-            console.log(loginData)
 
             const { user, tokens } = loginData;
-            console.log(user && tokens?.accessToken)
             if (user && tokens?.accessToken) {
                 setAuth({ user, accessToken: tokens.accessToken });
-                console.log("REDIRECt")
                 router.push('/dashboard');
             } else {
                 setLoginError(
@@ -92,75 +88,106 @@ export default function Page() {
 
     return (
         <div className={styles.container}>
-            {/* LEFT HERO */}
+            {/* LEFT SIDE: HERO */}
             <section className={styles.hero}>
-                <div className={styles.heroContent}>
-                    <div className={styles.badge}>
-                        <span className={styles.badgeIcon} />
+                <Image 
+                    src="/login-bg-modern.png" 
+                    alt="Industrial IoT Background" 
+                    fill 
+                    className={styles.heroBackground}
+                    priority
+                />
+                <div className={styles.brandLogo}>
+                    <div className={styles.logoIcon}>
+                        <Box size={24} strokeWidth={2.5} />
                     </div>
-
-                    <h1 className={styles.title}>
-                        Hệ thống
-                        <br />
-                        <span className={styles.titleAccent}>
-                            Quản lý sản lượng gạch
-                        </span>
-                    </h1>
-
-                    <p className={styles.footerNote}>
-                        Ac 2025 Vincenza Tech Team. All rights reserved.
-                    </p>
+                    <span className={styles.logoText}>VicenzaTech</span>
                 </div>
+
+                <div className={styles.heroContent}>
+                    <h1 className={styles.heroTitle}>
+                        Hệ thống <br/> Quản lý sản xuất
+                    </h1>
+                    <p className={styles.heroSubtitle}>
+                        Tự động hóa, giám sát theo thời gian thực và tối ưu hóa quy trình sản xuất gạch men.
+                    </p>
+                    <div className={styles.featureList}>
+                        <span className={styles.featureTag}>IoT Integration</span>
+                        <span className={styles.featureTag}>Real-time Analytics</span>
+                        <span className={styles.featureTag}>Production Tracking</span>
+                    </div>
+                </div>
+
+                <p className={styles.footerNote}>
+                    © 2025 Vicenza Tech Team. Enterprise System.
+                </p>
             </section>
 
-            {/* RIGHT FORM */}
+            {/* RIGHT SIDE: AUTH FORM */}
             <section className={styles.authSection}>
                 <div className={styles.authWrapper}>
-                    <div className={styles.brand}>
-                        <span className={styles.brandDot} />
-                        <span className={styles.brandText}>
-                            Hệ thống IOT tự động hóa - cung cấp thông tin trực
-                            quan trong vận hành khâu sản xuất
-                        </span>
+                    <div className={styles.formHeader}>
+                        <h2 className={styles.formTitle}>Chào mừng trở lại</h2>
+                        <p className={styles.formSubtitle}>
+                            Nhập thông tin xác thực để truy cập hệ thống
+                        </p>
                     </div>
 
-                    <Card>
-                        <CardHeader title="Đăng nhập" />
-                        <Formik
-                            initialValues={initialValues}
-                            validationSchema={LoginSchema}
-                            onSubmit={handleSubmit}
-                            validateOnBlur
-                        >
-                            {({ isSubmitting }) => (
-                                <Form className={styles.form} noValidate>
-                                    <InputField
-                                        name="identifier"
-                                        label="Tên đăng nhập"
-                                        placeholder="Email hoặc tên đăng nhập của bạn"
-                                    />
+                    <Formik
+                        initialValues={initialValues}
+                        validationSchema={LoginSchema}
+                        onSubmit={handleSubmit}
+                        validateOnBlur
+                    >
+                        {({ isSubmitting }) => (
+                            <Form className={styles.form} noValidate>
+                                <InputField
+                                    name="identifier"
+                                    label="Email hoặc Tên đăng nhập"
+                                    placeholder="name@company.com"
+                                    autoComplete="username"
+                                />
 
+                                <div>
                                     <InputField
                                         name="password"
                                         label="Mật khẩu"
                                         type="password"
+                                        placeholder="Nhập mật khẩu của bạn"
                                         autoComplete="current-password"
-                                        placeholder="Điền mật khẩu"
                                     />
+                                    <div className={styles.actionsRow} style={{ marginTop: '0.5rem' }}>
+                                        <div /> {/* Spacer for flex-between */}
+                                        <Link href="/auth/forgot-password" className={styles.forgotPassword}>
+                                            Quên mật khẩu?
+                                        </Link>
+                                    </div>
+                                </div>
 
-                                    <Button type="submit" loading={isSubmitting}>
-                                        Đăng nhập ngay
-                                    </Button>
+                                {loginError && (
+                                    <div className={styles.formError}>
+                                        <span>⚠️</span>
+                                        <span>{loginError}</span>
+                                    </div>
+                                )}
 
-                                    {loginError && (
-                                        <p className={styles.formError}>
-                                            {loginError}
-                                        </p>
-                                    )}
-                                </Form>
-                            )}
-                        </Formik>
-                    </Card>
+                                <Button 
+                                    type="submit" 
+                                    loading={isSubmitting} 
+                                    className="w-full" // Ensure button takes full width if not handled by CSS modules properly
+                                >
+                                    Đăng nhập
+                                </Button>
+                            </Form>
+                        )}
+                    </Formik>
+
+                    <div className={styles.bottomLink}>
+                        Chưa có tài khoản?
+                        <Link href="/auth/register" className={styles.createAccountLink}>
+                            Tạo tài khoản mới
+                        </Link>
+                    </div>
                 </div>
             </section>
         </div>
