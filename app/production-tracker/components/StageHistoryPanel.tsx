@@ -72,6 +72,12 @@ export function StageHistoryPanel({ items, hasSelection, lineName }: StageHistor
                                             : item?.product?.name ?? ''}
                                     </span>
                                 </div>
+                                <div className={styles.stageOperatorRow}>
+                                    <div>
+                                        <p className={styles.stageInfoLabel}>Người thao tác</p>
+                                        <p className={styles.stageInfoValue}>{item.operator ?? '--'}</p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     ))

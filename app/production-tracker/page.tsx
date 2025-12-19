@@ -29,6 +29,11 @@ export default function ProductionTracker() {
     const [processingStage, setProcessingStage] = useState<string | null>(null);
     const [toasts, setToasts] = useState<Toast[]>([]);
     const [stageHistory, setStageHistory] = useState<StageHistoryItem[]>([]);
+    const [showLogShiftConfirm, setShowLogShiftConfirm] = useState<{ show: boolean; lineId: number | null; stage: string }>({
+        show: false,
+        lineId: null,
+        stage: '',
+    });
     const [showConfirmDialog, setShowConfirmDialog] = useState<{
         show: boolean;
         message: string;
@@ -189,39 +194,39 @@ export default function ProductionTracker() {
                 if (!lineStages) return prev;
                 const currentStageState = lineStages[target.stageName];
                 if (!currentStageState) return prev;
-                
+
                 // Update deviceQuantities map
                 const updatedDeviceQuantities = {
                     ...(currentStageState.deviceQuantities || {}),
                     [deviceIdentifier]: quantityValue,
                 };
-                
+
                 // Calculate total from highest position devices
                 const stagesForLine = stagesData[target.lineId] ?? [];
                 const stageInfo = stagesForLine.find(s => s.name === target.stageName);
                 const stageId = stageInfo?.id;
-                
+
                 let totalQuantity = quantityValue; // Default to single device
-                
+
                 if (stageId) {
                     const devicesForStage = stageDeviceAssignments[stageId] ?? [];
                     const maxPosition = devicesForStage.length > 0
                         ? Math.max(...devicesForStage.map(d => d.position ?? 0))
                         : 0;
-                    
+
                     const highestPositionDevices = devicesForStage.filter(d => d.position === maxPosition);
-                    
+
                     // Sum quantities from highest position devices
                     totalQuantity = highestPositionDevices.reduce((sum, device) => {
                         const qty = updatedDeviceQuantities[device.deviceId] ?? 0;
                         return sum + qty;
                     }, 0);
                 }
-                
+
                 const area = computeAreaForProduct(totalQuantity, currentStageState.productId);
-                
+
                 console.log(`✅ Updated stage ${target.stageName}: total=${totalQuantity}, area=${area}`);
-                
+
                 return {
                     ...prev,
                     [target.lineId]: {
@@ -343,7 +348,7 @@ export default function ProductionTracker() {
             const { stageDeviceMap, stages } = await response.json();
             console.log('📊 Fetched stages:', stages);
             console.log('📊 Stage device map:', stageDeviceMap);
-            
+
             setStagesData((prev) => ({
                 ...prev,
                 [lineId]: stages.map((stage: any) => ({
@@ -613,6 +618,73 @@ export default function ProductionTracker() {
         setProductSearch('');
     };
 
+    const onLogShift = (lineId: number, stage: string) => {
+        setShowLogShiftConfirm({ show: true, lineId, stage });
+    }
+
+    const handleLogShiftConfirm = async () => {
+        if (!showLogShiftConfirm.lineId || !showLogShiftConfirm.stage) {
+            setShowLogShiftConfirm({ show: false, lineId: null, stage: '' });
+            return;
+        }
+        const lineId = showLogShiftConfirm.lineId;
+        const stage = showLogShiftConfirm.stage;
+        const state = getStageState(lineId, stage);
+        const product = products.find((p) => p.id === state.productId) || undefined;
+        const now = new Date();
+        try {
+            const stageInfo = stagesData[lineId]?.find(s => s.name === stage);
+            const payload = {
+                stageId: stageInfo?.id,
+                productionLineId: lineId,
+                productId: product?.id,
+                startTime: state.startTime ? new Date(state.startTime).toISOString() : now.toISOString(),
+                endTime: now.toISOString(),
+                quantity: state.quantity,
+                area: state.area,
+                isEmergency: false,
+                notes: 'Chốt sản lượng ca',
+                // stopReason, notes, createdByUsername: bổ sung nếu cần
+            };
+            const response = await apiFetch('/production-stage-history', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!response.ok) {
+                throw new Error('Gửi lịch sử ca thất bại');
+            }
+            console.log("RESPONSE : ", response)
+            const nowISO = new Date().toISOString();
+            const newHistoryItem: StageHistoryItem = {
+                id: Date.now(),
+                timestamp: nowISO,
+                createdAt: new Date(nowISO),
+                lineId: payload.productionLineId,
+                lineName:
+                    factories.find((f) => f.id === selectedFactory)?.lines.find((l) => l.id === payload.productionLineId)?.name ??
+                    '',
+                action: 'log',
+                quantity: typeof payload.quantity === 'number' ? payload.quantity : undefined,
+                area: typeof payload.area === 'number' ? payload.area : undefined,
+                stageId: payload.stageId ?? stageInfo?.id ?? 0,
+                stage: { name: stage },
+                productId: payload.productId ?? undefined,
+                product: product ? { id: product.id, name: product.name, code: product.code } : undefined,
+                startTime: payload.startTime ? new Date(payload.startTime) : state.startTime ? new Date(state.startTime) : new Date(),
+                endTime: payload.endTime ? new Date(payload.endTime) : new Date(nowISO),
+                isEmergency: Boolean(payload.isEmergency),
+                notes: payload.notes ?? 'Chốt sản lượng ca',
+            };
+
+            // prepend to local history so UI updates immediately
+            setStageHistory((prev) => [newHistoryItem, ...prev]);
+            showToast('Đã chốt sản lượng ca cho công đoạn!', 'success');
+        } catch (error) {
+            showToast('Lỗi khi gửi lịch sử ca!', 'error');
+        }
+        setShowLogShiftConfirm({ show: false, lineId: null, stage: '' });
+    };
     const closeProductDialog = () => {
         setProductDialog({ show: false, lineId: null, stage: '', selectedProductId: null });
         setProductSearch('');
@@ -898,6 +970,36 @@ export default function ProductionTracker() {
 
     return (
         <div className={styles.container}>
+            {/* Log Shift Confirm Modal */}
+            {showLogShiftConfirm.show && (
+                <div className={styles.modalOverlay}>
+                    <div className={styles.modal}>
+                        <div className={styles.modalHeader}>
+                            <CheckCircle size={32} className={styles.modalSuccessIcon} />
+                            <h2 className={styles.modalTitle}>Chốt sản lượng ca</h2>
+                        </div>
+                        <p className={styles.modalMessage}>
+                            Bạn muốn chốt sản lượng ca cho công đoạn <strong>{showLogShiftConfirm.stage}</strong>?
+                        </p>
+                        <div className={styles.modalActions}>
+                            <button
+                                type="button"
+                                className={styles.modalBtnCancel}
+                                onClick={() => setShowLogShiftConfirm({ show: false, lineId: null, stage: '' })}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                type="button"
+                                className={styles.modalBtnConfirm}
+                                onClick={handleLogShiftConfirm}
+                            >
+                                Xác nhận
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             {/* Stop / emergency dialog */}
             {showConfirmDialog.show && (
                 <div className={styles.modalOverlay}>
@@ -916,7 +1018,7 @@ export default function ProductionTracker() {
                                 className={styles.modalSelect}
                                 value={showConfirmDialog.selectedReason ?? ''}
                                 onChange={(event) => {
-                                    const value = event.target.value as StopReason;
+                                    const value = event.target.value;
                                     const reason = value === '' ? null : (value as StopReason);
                                     stopActionRef.current.reason = reason;
                                     setShowConfirmDialog((prev) => ({ ...prev, selectedReason: reason }));
@@ -1157,11 +1259,11 @@ export default function ProductionTracker() {
                         const state = getStageState(selectedLine ?? 0, stage);
                         const product = products.find((p) => p.id === state.productId) || null;
                         const runningTime = getRunningTime(state.startTime);
-                        
+
                         // Get devices for this stage
                         const stageInfo = selectedLine ? stagesData[selectedLine]?.find(s => s.name === stage) : null;
                         const devices = stageInfo ? (stageDeviceAssignments[stageInfo.id] ?? []) : [];
-                        
+
                         return (
                             <StageCard
                                 key={stage}
@@ -1178,6 +1280,7 @@ export default function ProductionTracker() {
                                 onLog={confirmLogProduction}
                                 onResume={confirmResumeProduction}
                                 onOpenProductDialog={openProductDialog}
+                                onLogShift={onLogShift}
                             />
                         );
                     })}

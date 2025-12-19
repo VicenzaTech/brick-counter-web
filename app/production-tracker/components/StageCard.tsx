@@ -24,11 +24,13 @@ interface StageCardProps {
     maxQuantityForLine: number;
     runningTime: string;
     processingStage: string | null;
+    operator?: string | null; // <-- new prop
     onStart: (lineId: number, stage: string) => Promise<void> | void;
     onStop: (lineId: number, stage: string, emergency: boolean) => void;
     onLog: (lineId: number, stage: string) => void;
     onResume: (lineId: number, stage: string) => void;
     onOpenProductDialog: (lineId: number, stage: string) => void;
+    onLogShift: (lineId: number, stage: string) => void;
 }
 
 const STATUS_MAP = {
@@ -60,6 +62,7 @@ export default function StageCard({
     onLog,
     onResume,
     onOpenProductDialog,
+    onLogShift,
 }: StageCardProps) {
     const resolvedStatus = (state.status ?? 'stopped') as keyof typeof STATUS_MAP;
     const statusInfo =
@@ -222,6 +225,12 @@ export default function StageCard({
                     </button>
                 )}
             </div>
+            <div className={styles.stageOperatorRow}>
+                <div>
+                    <p className={styles.stageInfoLabel}>Người thao tác</p>
+                    <p className={styles.stageInfoValue}>ADMIN</p>
+                </div>
+            </div>
 
             {/* Real-time Data Section */}
             <div className={styles.stageRealtimeSection}>
@@ -334,14 +343,14 @@ export default function StageCard({
                         Quay lại
                     </button>
                 )}
-                {resolvedStatus == 'running' && lineId !== null && (
+                {resolvedStatus === 'running' && lineId !== null && (
                     <button
                         type="button"
                         className={styles.stageSecondaryBtn}
-                        onClick={() => onStop(lineId, stage, true)}
+                        onClick={() => onLogShift(lineId, stage)}
                     >
-                        <AlertTriangle size={16} />
-                        Dừng khẩn cấp
+                        <TrendingUp size={16} />
+                        Chốt sản lượng ca
                     </button>
                 )}
             </div>
