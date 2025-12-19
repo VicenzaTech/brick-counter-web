@@ -1,0 +1,523 @@
+.wrapper {
+  min-height: 100vh;
+  padding: 32px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.pageHeader {
+  margin-bottom: 24px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.breadcrumb {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: #94a3b8;
+}
+
+.filtersCard {
+  background: #fff;
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 0 15px 30px rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  margin-bottom: 28px;
+}
+
+.filtersRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.filterLabel {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8ca0c0;
+  font-weight: 600;
+}
+
+.dateRangeControls {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.dateRangeItem {
+  flex: 0 0 auto;
+  min-width: 140px;
+  display: flex;
+}
+
+.dateRangeItemGrow {
+  flex: 1;
+  min-width: 0;
+}
+
+.dateRangeItem :global(.ant-select),
+.dateRangeItem :global(.ant-picker) {
+  width: 100%;
+}
+
+.trendModeToggle {
+  display: flex;
+  gap: 8px;
+}
+
+.rangeButton {
+  border: 1px solid #dbe3f2;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  transition: all 0.2s ease;
+}
+
+.rangeButtonActive {
+  background: #2563eb;
+  color: #fff;
+  border-color: #2563eb;
+  box-shadow: 0 6px 14px rgba(37, 99, 235, 0.3);
+}
+
+.actionCell {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.compareButton {
+  width: 100%;
+  height: 42px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  border: none;
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 18px 30px rgba(37, 99, 235, 0.28);
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+  margin-bottom: 32px;
+}
+
+@keyframes skeletonPulse {
+  0% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+  }
+}
+
+.skeletonCard {
+  pointer-events: none;
+}
+
+.skeletonBlock {
+  display: block;
+  width: 100%;
+  background: linear-gradient(120deg, #eef2ff, #f8fafc, #eef2ff);
+  border-radius: 12px;
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+  min-height: 12px;
+}
+
+.skeletonLabel {
+  height: 14px;
+  width: 60%;
+}
+
+.skeletonValue {
+  height: 24px;
+  width: 70%;
+  border-radius: 8px;
+}
+
+.skeletonBadge {
+  height: 12px;
+  width: 45%;
+}
+
+.skeletonMetricValues {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.skeletonChart {
+  height: 220px;
+  border-radius: 18px;
+}
+
+.skeletonChartTall {
+  height: 300px;
+  border-radius: 18px;
+}
+
+.skeletonTitle {
+  height: 18px;
+  width: 50%;
+}
+
+.skeletonStack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.metricCard {
+  background: #fff;
+  border-radius: 18px;
+  padding: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.metricCard h3 {
+  margin: 0;
+  font-size: 14px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.metricValues {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.metricValueBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.metricValueBlock span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.metricValueBlock strong {
+  font-size: 22px;
+  color: #0f172a;
+}
+
+.metricDelta {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.metricDelta.warning {
+  color: #f97316;
+}
+
+.metricDelta.positive {
+  color: #22c55e;
+}
+
+.metricDelta.negative {
+  color: #ef4444;
+}
+
+.metricDelta.neutral {
+  color: #94a3b8;
+}
+
+.trendGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
+  gap: 24px;
+  margin-bottom: 32px;
+}
+
+.trendCard {
+  background: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.06);
+}
+
+.trendHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.trendHeader h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #0f172a;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.trendLegend {
+  display: flex;
+  gap: 12px;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.trendLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #cbd5f5;
+  display: inline-block;
+}
+
+.chartContainer {
+  height: clamp(170px, 32vw, 280px);
+}
+
+.compareRow {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  gap: 24px;
+}
+
+.overlayCard,
+.summaryCard {
+  background: #fff;
+  border-radius: 20px;
+  padding: 24px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 18px 35px rgba(15, 23, 42, 0.06);
+}
+
+.summaryBar {
+  width: 100%;
+  height: clamp(160px, 30vw, 240px);
+  margin-bottom: 24px;
+}
+
+.overlayCard .chartContainer {
+  height: clamp(210px, 38vw, 340px);
+}
+
+.progressList {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.progressItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.progressItem span {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.progressBar {
+  height: 10px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow-x: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: inherit;
+}
+
+.loadingState {
+  position: relative;
+}
+
+.loadingState::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.7);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.loadingStateActive::after {
+  opacity: 1;
+}
+
+@media (max-width: 1024px) {
+  .wrapper {
+    padding: 28px;
+  }
+  .trendGrid {
+    grid-template-columns: 1fr;
+  }
+  .compareRow {
+    grid-template-columns: 1fr;
+  }
+  .trendHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .trendLegend {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 900px) {
+  .filtersRow {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+  .metricValues {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .metricValueBlock strong {
+    font-size: 20px;
+  }
+  .trendModeToggle {
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 768px) {
+  .wrapper {
+    padding: 24px 16px;
+  }
+  .filtersCard {
+    padding: 20px;
+  }
+  .filtersRow {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .dateRangeControls {
+    flex-direction: column;
+  }
+  .dateRangeItem,
+  .dateRangeItemGrow {
+    width: 100%;
+  }
+  .dateRangeItemGrow {
+    flex: unset;
+  }
+  .trendLegend {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .trendHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .metricCard {
+    padding: 16px;
+  }
+  .trendCard,
+  .overlayCard,
+  .summaryCard {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 540px) {
+  .pageTitle {
+    font-size: 22px;
+  }
+  .filtersCard {
+    border-radius: 16px;
+    padding: 16px;
+  }
+  .rangeButton {
+    flex: 1;
+    text-align: center;
+  }
+  .metricValues {
+    padding-top: 6px;
+  }
+  .metricValueBlock strong {
+    font-size: 18px;
+  }
+  .progressList {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 420px) {
+  .trendCard,
+  .overlayCard,
+  .summaryCard {
+    padding: 16px;
+  }
+  .trendGrid {
+    gap: 16px;
+  }
+  .compareRow {
+    gap: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rangeButton,
+  .metricCard,
+  .filtersCard,
+  .trendCard,
+  .overlayCard,
+  .summaryCard {
+    transition: none;
+  }
+  .skeletonBlock {
+    animation: none;
+  }
+}

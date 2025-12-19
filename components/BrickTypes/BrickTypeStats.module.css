@@ -1,0 +1,132 @@
+.container {
+  margin-top: 24px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 20px 0;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.loadingState {
+  text-align: center;
+  padding: 40px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.statCard {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 16px;
+}
+
+.statHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.statLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.statValue {
+  font-size: 28px;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 4px;
+}
+
+.statMeta {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.trendUp {
+  font-size: 12px;
+  font-weight: 600;
+  color: #059669;
+}
+
+.trendDown {
+  font-size: 12px;
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.trendNeutral {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+}
+
+.trendSection {
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.trendTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0 0 16px 0;
+}
+
+.trendChart {
+  position: relative;
+  height: 120px;
+  background: #f9fafb;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.trendBars {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-around;
+  height: 100%;
+  gap: 4px;
+}
+
+.trendBar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.trendBarFill {
+  width: 100%;
+  background: linear-gradient(to top, #3b82f6, #60a5fa);
+  border-radius: 2px 2px 0 0;
+  transition: height 0.3s ease;
+  min-height: 4px;
+}
+
+.trendBarLabel {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 4px;
+}

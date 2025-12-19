@@ -83,6 +83,7 @@ export interface ProductionRecord {
     waste_moc: number;
     waste_lo: number;
     waste_truoc_mai: number;
+    totalAreaM2: number;
     waste_thanh_pham: number;
 }
 
@@ -190,6 +191,7 @@ const createMockProductionRecords = (): ProductionRecord[] => {
                 waste_lo: Number(((kilnLoss / targetOutput) * 100).toFixed(2)),
                 waste_truoc_mai: Number(((finishingLoss / targetOutput) * 100).toFixed(2)),
                 waste_thanh_pham: Number(((scrap / targetOutput) * 100).toFixed(2)),
+                totalAreaM2: 0
             });
         }
     });

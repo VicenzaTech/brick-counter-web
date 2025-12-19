@@ -1,961 +1,710 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import { Trash2, Pencil, Plus, ArrowLeft } from 'lucide-react';
-import styles from './page.module.css';
-import { apiFetch } from '@/lib/http/http';
-import { useAuthStore } from '@/store/auth.store';
-import { hasPermission } from '@/lib/auth/rbarc';
-import { PERMISSIONS } from '@/lib/auth/permission.constant';
-
-type LogStatus = 'producing' | 'paused' | 'inactive';
-type ChartMode = 'day' | 'month';
-
-interface BrickType {
-  id: number;
-  name: string;
-  description?: string;
-  unit?: string;
-  specs?: any;
-  isActive?: boolean;
-  activeProductionLineId?: number;
-  lastActiveAt?: string;
-  activeStatus?: LogStatus;
-  workshop?: string;
-  productionLine?: string;
-  tileSize?: string;
-  contractCycle?: number;
-  kilnOutput?: number;
-  qualityProductOutput?: number;
-  deductionDays?: number;
-  contractProduction?: number;
-  additionalContractWhenReducingCycle?: number;
-  reducedContractWhenIncreasingCycle?: number;
-}
-
-interface BrickFormState {
-  name: string;
-  description: string;
-  unit: string;
-  specs: string;
-  workshop: string;
-  productionLine: string;
-  tileSize: string;
-  contractCycle: string;
-  kilnOutput: string;
-  qualityProductOutput: string;
-  deductionDays: string;
-  contractProduction: string;
-  additionalContractWhenReducingCycle: string;
-  reducedContractWhenIncreasingCycle: string;
-}
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5555/api';
-
-function buildInitialFormState(): BrickFormState {
-  return {
-    name: '',
-    description: '',
-    unit: 'm²',
-    specs: '',
-    workshop: '',
-    productionLine: '',
-    tileSize: '',
-    contractCycle: '',
-    kilnOutput: '',
-    qualityProductOutput: '',
-    deductionDays: '',
-    contractProduction: '',
-    additionalContractWhenReducingCycle: '',
-    reducedContractWhenIncreasingCycle: '',
-  };
-}
-
-function buildFormStateFromBrick(brick: BrickType): BrickFormState {
-  return {
-    name: brick.name,
-    description: brick.description || '',
-    unit: brick.unit || 'm²',
-    specs: brick.specs ? JSON.stringify(brick.specs, null, 2) : '',
-    workshop: brick.workshop || '',
-    productionLine: brick.productionLine || '',
-    tileSize: brick.tileSize || '',
-    contractCycle: brick.contractCycle?.toString() || '',
-    kilnOutput: brick.kilnOutput?.toString() || '',
-    qualityProductOutput: brick.qualityProductOutput?.toString() || '',
-    deductionDays: brick.deductionDays?.toString() || '',
-    contractProduction: brick.contractProduction?.toString() || '',
-    additionalContractWhenReducingCycle:
-      brick.additionalContractWhenReducingCycle?.toString() || '',
-    reducedContractWhenIncreasingCycle:
-      brick.reducedContractWhenIncreasingCycle?.toString() || '',
-  };
-}
-
-function formatNumber(num?: number) {
-  if (num === undefined || num === null) return '-';
-  return new Intl.NumberFormat('vi-VN').format(num);
-}
-
-function formatDate(dateStr?: string | null) {
-  if (!dateStr) return '-';
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return '-';
-  return d.toLocaleDateString('vi-VN');
-}
-
-// Fake sản lượng từ đầu năm tới giờ (tính theo tháng đã trôi qua trong năm)
-function getYearToDateProduction(brickId: number): number {
-  const currentMonth = new Date().getMonth(); // 0-11
-  const baseMonthly = 8000 + (brickId % 7) * 1500; // Sản lượng trung bình mỗi tháng
-  const variance = (brickId * 317) % 1000; // Biến động ngẫu nhiên
-  return Math.floor(baseMonthly * (currentMonth + 1) + variance);
-}
-
-function getMockMonthlySeries(brickId: number) {
-  const base = 40 + (brickId % 5) * 8;
-  const labels = ['Th1', 'Th2', 'Th3', 'Th4', 'Th5', 'Th6', 'Th7', 'Th8', 'Th9', 'Th10', 'Th11', 'Th12'];
-  const currentMonth = new Date().getMonth();
-  const months = labels.map((label, index) => ({
-    label,
-    value: index <= currentMonth ? base + ((index * 7 + brickId * 3) % 30) : 0,
-  }));
-  const max = Math.max(...months.map((m) => m.value)) || 1;
-  return { months, max };
-}
-
-function getMockDailySeries(brickId: number) {
-  const base = 10 + (brickId % 4) * 5;
-  const labels = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
-  const days = labels.map((label, index) => ({
-    label,
-    value: base + ((index * 3 + brickId * 5) % 18),
-  }));
-  const max = Math.max(...days.map((d) => d.value)) || 1;
-  return { days, max };
-}
+import { useState, useMemo } from "react";
+import { useAuthStore } from "@/store/auth.store";
+import { hasPermission } from "@/lib/auth/rbarc";
+import { PERMISSIONS } from "@/lib/auth/permission.constant";
+import {
+  useBrickTypes,
+  useCreateBrickType,
+  useUpdateBrickType,
+  useDeleteBrickType,
+} from "@/hooks/useBrickTypes";
+import type { BrickType, CreateBrickTypeDto } from "@/lib/types/brick-type";
+import { BrickTypeForm } from "@/components/BrickTypes/BrickTypeForm";
+import { BrickTypeList } from "@/components/BrickTypes/BrickTypeList";
+import { ComparePanel } from "@/components/BrickTypes/ComparePanel";
+import { BrickTypeStats } from "@/components/BrickTypes/BrickTypeStats";
+import { Button } from "@/components/Button/Button";
+import { Dialog } from "@/components/Dialog/Dialog";
+import {
+  Plus,
+  Search,
+  Pencil,
+  Trash2,
+  Eye,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
+  LayoutList,
+  GitCompare,
+} from "lucide-react";
+import styles from "./BrickTypesPage.module.css";
 
 export default function BrickTypesPage() {
-  const [brickTypes, setBrickTypes] = useState<BrickType[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const [selectedBrickId, setSelectedBrickId] = useState<number | null>(null);
-  const [lineFilter, setLineFilter] = useState<string>('all');
-
-  // Tính năng so sánh nhiều
-  const [selectedForCompare, setSelectedForCompare] = useState<Set<number>>(new Set());
-  const [compareMode, setCompareMode] = useState(false);
-
-  const [showModal, setShowModal] = useState(false);
-  const [editingBrick, setEditingBrick] = useState<BrickType | null>(null);
-  const [formData, setFormData] = useState<BrickFormState>(buildInitialFormState);
-  const [saving, setSaving] = useState(false);
-  const [chartMode, setChartMode] = useState<ChartMode>('day');
-
   const user = useAuthStore((s) => s.user);
-  const canUpdate = hasPermission(user, PERMISSIONS.PRODUCTION_LINE_UPDATE);
+  const canUpdate = user
+    ? hasPermission(user, PERMISSIONS.BRICK_TYPE_UPDATE)
+    : false;
+  const canDelete = user
+    ? hasPermission(user, PERMISSIONS.BRICK_TYPE_DELETE)
+    : false;
+  const canCreate = user
+    ? hasPermission(user, PERMISSIONS.BRICK_TYPE_CREATE)
+    : false;
 
-  useEffect(() => {
-    fetchBrickTypes();
-  }, []);
+  const { data, loading, refetch } = useBrickTypes();
+  const brickTypes = useMemo(() => data || [], [data]);
 
-  async function fetchBrickTypes() {
-    try {
-      setLoading(true);
-      setError(null);
-      const res = await apiFetch(`${API_URL}/brick-types`);
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.message || 'Không tải được danh sách dạng gạch');
-      }
-      const data = await res.json();
-      setBrickTypes(data);
-    } catch (err: any) {
-      console.error('Error fetching brick types:', err);
-      setError(err.message || 'Lỗi khi tải dữ liệu dạng gạch');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const createMutation = useCreateBrickType();
+  const updateMutation = useUpdateBrickType();
+  const deleteMutation = useDeleteBrickType();
 
-  const productionLineOptions = useMemo(() => {
-    const lines = new Set<string>();
-    brickTypes.forEach((b) => {
-      if (b.productionLine) lines.add(b.productionLine);
-    });
-    return Array.from(lines);
+  // Filter States
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [sizeFilter, setSizeFilter] = useState<string>("all");
+  const [thicknessFilter, setThicknessFilter] = useState<string>("all");
+  const [qualityFilter, setQualityFilter] = useState<string>("all");
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
+
+  // Modal States
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingBrick, setEditingBrick] = useState<BrickType | undefined>(
+    undefined
+  );
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [brickToDelete, setBrickToDelete] = useState<BrickType | null>(null);
+
+  // View Mode States
+  const [viewMode, setViewMode] = useState<"table" | "grid">("table");
+  const [compareMode, setCompareMode] = useState(false);
+  const [selectedForCompare, setSelectedForCompare] = useState<Set<number>>(
+    new Set()
+  );
+  const [selectedBrickId, setSelectedBrickId] = useState<number | null>(null);
+  const [showDetailPanel, setShowDetailPanel] = useState(false);
+  const [chartMode, setChartMode] = useState<"day" | "month">("day");
+
+  // Derived Data for Filters
+  const uniqueSizes = useMemo(() => {
+    const sizes = new Set(brickTypes.map((b) => b.tileSize).filter(Boolean));
+    return Array.from(sizes).sort();
   }, [brickTypes]);
 
-  const filteredBrickTypes = useMemo(() => {
-    if (lineFilter === 'all') return brickTypes;
-    return brickTypes.filter((b) => b.productionLine === lineFilter);
-  }, [brickTypes, lineFilter]);
+  const uniqueThicknesses = useMemo(() => {
+    const thicknesses = new Set(
+      brickTypes.map((b) => b.thickness).filter(Boolean)
+    );
+    return Array.from(thicknesses).sort((a, b) => (a || 0) - (b || 0));
+  }, [brickTypes]);
 
-  useEffect(() => {
-    if (filteredBrickTypes.length === 0) {
-      setSelectedBrickId(null);
-      return;
-    }
-    // Auto-select first brick on initial load
-    if (selectedBrickId === null) {
-      setSelectedBrickId(filteredBrickTypes[0].id);
-    }
-    // If selected brick is filtered out, select first available
-    else if (!filteredBrickTypes.some((b) => b.id === selectedBrickId)) {
-      setSelectedBrickId(filteredBrickTypes[0].id);
-    }
-  }, [filteredBrickTypes, selectedBrickId]);
+  const uniqueQualities = useMemo(() => {
+    const qualities = new Set(
+      brickTypes.map((b) => b.qualityStandard).filter(Boolean)
+    );
+    return Array.from(qualities).sort();
+  }, [brickTypes]);
 
-  const selectedBrick = filteredBrickTypes.find((b) => b.id === selectedBrickId) ?? null;
+  // Filtering Logic
+  const filteredBricks = useMemo(() => {
+    return brickTypes.filter((brick) => {
+      const matchesSearch =
+        brick.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (brick.nameEnglish &&
+          brick.nameEnglish.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // Hàm toggle chọn so sánh
-  const toggleCompare = (id: number) => {
+      const matchesType =
+        typeFilter === "all" || brick.brickType === typeFilter;
+      const matchesSize = sizeFilter === "all" || brick.tileSize === sizeFilter;
+      const matchesThickness =
+        thicknessFilter === "all" ||
+        brick.thickness?.toString() === thicknessFilter;
+      const matchesQuality =
+        qualityFilter === "all" || brick.qualityStandard === qualityFilter;
+
+      return (
+        matchesSearch &&
+        matchesType &&
+        matchesSize &&
+        matchesThickness &&
+        matchesQuality
+      );
+    });
+  }, [
+    brickTypes,
+    searchTerm,
+    typeFilter,
+    sizeFilter,
+    thicknessFilter,
+    qualityFilter,
+  ]);
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredBricks.length / pageSize);
+  const paginatedBricks = filteredBricks.slice(
+    (currentPage - 1) * pageSize,
+    currentPage * pageSize
+  );
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  // Handlers
+  const handleCreate = () => {
+    setEditingBrick(undefined);
+    setIsModalOpen(true);
+  };
+
+  const handleEdit = (brick: BrickType) => {
+    setEditingBrick(brick);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteClick = (brick: BrickType) => {
+    setBrickToDelete(brick);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (brickToDelete) {
+      try {
+        await deleteMutation.mutate(brickToDelete.id);
+        setIsDeleteModalOpen(false);
+        setBrickToDelete(null);
+        refetch();
+      } catch (error) {
+        console.error("Failed to delete brick type", error);
+      }
+    }
+  };
+
+  const handleSubmitForm = async (data: CreateBrickTypeDto) => {
+    try {
+      if (editingBrick) {
+        await updateMutation.mutate(editingBrick.id, data);
+      } else {
+        await createMutation.mutate(data);
+      }
+      setIsModalOpen(false);
+      refetch();
+    } catch (error) {
+      console.error("Failed to save brick type", error);
+      alert(
+        `Lỗi: ${
+          error instanceof Error ? error.message : "Không thể lưu dữ liệu"
+        }`
+      );
+    }
+  };
+
+  const handleSelectBrick = (id: number) => {
+    setSelectedBrickId(id);
+    setShowDetailPanel(true);
+  };
+
+  const handleToggleCompare = (id: number) => {
     const newSet = new Set(selectedForCompare);
-    if (newSet.has(id)) newSet.delete(id);
-    else newSet.add(id);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      if (newSet.size < 5) {
+        newSet.add(id);
+      }
+    }
     setSelectedForCompare(newSet);
   };
 
-  const exitCompareMode = () => {
+  const handleEnterCompareMode = () => {
+    setCompareMode(false); // Exit compare mode to show comparison panel
+  };
+
+  const handleExitCompareMode = () => {
     setCompareMode(false);
     setSelectedForCompare(new Set());
   };
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSaving(true);
+  const handleToggleActive = async (id: number, isActive: boolean) => {
+    // Implement toggle active status
+    console.log("Toggle active:", id, isActive);
+  };
 
-    try {
-      const payload: any = {
-        name: formData.name,
-        description: formData.description || undefined,
-        unit: formData.unit || undefined,
-        specs: formData.specs ? JSON.parse(formData.specs) : undefined,
-        workshop: formData.workshop || undefined,
-        productionLine: formData.productionLine || undefined,
-        tileSize: formData.tileSize || undefined,
-      };
+  const handleCopy = (brick: BrickType) => {
+    const newBrick = { ...brick, name: `${brick.name} (Copy)` };
+    setEditingBrick(newBrick as BrickType);
+    setIsModalOpen(true);
+  };
 
-      ['contractCycle', 'kilnOutput', 'qualityProductOutput', 'deductionDays', 'contractProduction', 'additionalContractWhenReducingCycle', 'reducedContractWhenIncreasingCycle'].forEach(key => {
-        if (formData[key as keyof BrickFormState]) {
-          payload[key] = Number(formData[key as keyof BrickFormState]);
-        }
-      });
-
-      const url = editingBrick ? `${API_URL}/brick-types/${editingBrick.id}` : `${API_URL}/brick-types`;
-      const method = editingBrick ? 'PUT' : 'POST';
-
-      const res = await apiFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Lỗi khi lưu thông tin dạng gạch');
-      }
-
-      await fetchBrickTypes();
-      handleCloseModal();
-    } catch (err: any) {
-      setError(err.message || 'Lỗi khi lưu thông tin dạng gạch');
-    } finally {
-      setSaving(false);
+  const getBadgeClass = (type?: string) => {
+    switch (type) {
+      case "Porcelain":
+        return styles.badgePorcelain;
+      case "Granite":
+        return styles.badgeGranite;
+      case "Ceramic":
+        return styles.badgeCeramic;
+      default:
+        return styles.badgeDefault;
     }
-  }
-
-  async function handleDelete(id: number) {
-    if (!confirm('Bạn chắc chắn muốn xoá dạng gạch này?')) return;
-    try {
-      const res = await apiFetch(`${API_URL}/brick-types/${id}`, { method: 'DELETE' });
-      if (!res.ok && res.status !== 204) throw new Error('Lỗi khi xoá');
-      await fetchBrickTypes();
-      if (selectedBrickId === id) setSelectedBrickId(null);
-    } catch (err: any) {
-      setError(err.message || 'Lỗi khi xoá dạng gạch');
-    }
-  }
-
-  function openCreateModal() {
-    setEditingBrick(null);
-    setFormData(buildInitialFormState());
-    setShowModal(true);
-  }
-
-  function openEditModal(brick: BrickType) {
-    setEditingBrick(brick);
-    setFormData(buildFormStateFromBrick(brick));
-    setShowModal(true);
-  }
-
-  function handleCloseModal() {
-    setShowModal(false);
-    setEditingBrick(null);
-    setFormData(buildInitialFormState());
-    setError(null);
-  }
-
-  const totalActive = brickTypes.filter((b) => b.isActive).length;
+  };
 
   return (
-    <div className={styles.shell}>
-      <main className={styles.main}>
-        {loading ? (
-          <div className={styles.loadingWrapper}>
-            <div className={styles.spinner} />
-            <p>Đang tải dữ liệu dạng gạch...</p>
-          </div>
-        ) : (
-          <div className={styles.layout}>
-            {/* === DANH SÁCH BÊN TRÁI === */}
-            <section className={styles.listPanel}>
-              <header className={styles.listHeader}>
-                <div>
-                  <h2 className={styles.listTitle}>Dạng gạch</h2>
-                  <p className={styles.listSubtitle}>
-                    Danh sách dạng gạch và trạng thái hoạt động
-                  </p>
-                </div>
-                {canUpdate && (
-                  <button type="button" className={styles.createButton} onClick={openCreateModal}>
-                    <Plus size={16} />
-                    <span>Thêm mới</span>
-                  </button>
-                )}
-              </header>
-
-              {/* Thanh thông báo + nút So sánh */}
-              {selectedForCompare.size >= 2 && (
-                <div className={styles.compareHeaderBar}>
-                  <span>Đã chọn {selectedForCompare.size} dạng gạch</span>
-                  <div>
-                    {compareMode ? (
-                      <button type="button" className={styles.secondaryButton} onClick={exitCompareMode}>
-                        ← Quay lại chi tiết
-                      </button>
-                    ) : (
-                      <button type="button" className={styles.createButton} onClick={() => setCompareMode(true)}>
-                        So sánh đã chọn
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              <div className={styles.listFilterRow}>
-                <label className={styles.filterLabel} htmlFor="lineFilter">
-                  Dây chuyền
-                </label>
-                <select
-                  id="lineFilter"
-                  className={styles.lineSelect}
-                  value={lineFilter}
-                  onChange={(e) => setLineFilter(e.target.value)}
+    <div className={styles.pageWrapper}>
+      {/* Compare Mode View */}
+      {!compareMode && selectedForCompare.size > 0 ? (
+        <ComparePanel
+          brickIds={Array.from(selectedForCompare)}
+          bricks={brickTypes}
+          chartMode={chartMode}
+          onChartModeChange={setChartMode}
+          onExit={handleExitCompareMode}
+        />
+      ) : (
+        <>
+          {/* Header */}
+          <div className={styles.headerRow}>
+            <div className={styles.titleBlock}>
+              <h1 className={styles.title}>Quản lý dòng gạch</h1>
+            </div>
+            <div className={styles.topActions}>
+              {/* View Mode Toggle */}
+              <div className={styles.viewModeToggle}>
+                <button
+                  className={`${styles.viewModeBtn} ${
+                    viewMode === "table" ? styles.active : ""
+                  }`}
+                  onClick={() => setViewMode("table")}
+                  title="Xem dạng bảng"
                 >
-                  <option value="all">Tất cả dây chuyền</option>
-                  {productionLineOptions.map((line) => (
-                    <option key={line} value={line}>{line}</option>
-                  ))}
-                </select>
+                  <LayoutList size={18} />
+                </button>
+                <button
+                  className={`${styles.viewModeBtn} ${
+                    viewMode === "grid" ? styles.active : ""
+                  }`}
+                  onClick={() => setViewMode("grid")}
+                  title="Xem dạng lưới"
+                >
+                  <LayoutGrid size={18} />
+                </button>
               </div>
 
-              <ul className={styles.brickList}>
-                {filteredBrickTypes.map((brick) => {
-                  const isActive = brick.isActive !== false;
-                  const isSelected = brick.id === selectedBrickId && !compareMode;
-
-                  return (
-                    <li key={brick.id} className={styles.brickListItemRow}>
-                      {/* Checkbox nằm ngoài, không đè */}
-                      <label className={styles.compareCheckboxOuter}>
-                        <input
-                          type="checkbox"
-                          checked={selectedForCompare.has(brick.id)}
-                          onChange={() => toggleCompare(brick.id)}
-                        />
-                        <span className={styles.checkmark} />
-                      </label>
-
-                      {/* Nội dung item gạch – padding trái để tránh đè checkbox */}
-                      <button
-                        type="button"
-                        className={`${styles.brickListItem} ${isSelected ? styles.brickListItemActive : ''}`}
-                        onClick={() => !compareMode && setSelectedBrickId(brick.id)}
-                      >
-                        <div className={styles.brickListMain}>
-                          <span className={styles.brickListName}>{brick.name}</span>
-                          {brick.productionLine && (
-                            <span className={styles.brickListLine}>{brick.productionLine}</span>
-                          )}
-                        </div>
-                        <div className={styles.brickListStatus}>
-                          <span className={`${styles.statusDot} ${isActive ? styles.statusDotActive : styles.statusDotInactive}`} />
-                          <span className={styles.statusText}>
-                            {isActive ? 'Đang dùng' : 'Ngưng dùng'}
-                          </span>
-                        </div>
-                      </button>
-                    </li>
-                  );
-                })}
-                {filteredBrickTypes.length === 0 && (
-                  <li className={styles.emptyListState}>
-                    Không có dạng gạch nào trong bộ lọc hiện tại.
-                  </li>
-                )}
-              </ul>
-            </section>
-
-            {/* === PANEL CHI TIẾT / SO SÁNH BÊN PHẢI === */}
-            <section className={styles.detailPanel}>
-              {compareMode ? (
-                <ComparePanel 
-                  brickIds={Array.from(selectedForCompare)} 
-                  brickTypes={brickTypes} 
-                  chartMode={chartMode} 
-                  setChartMode={setChartMode}
-                  onExit={() => setCompareMode(false)} 
+              {/* Compare Button - Works for both table and grid */}
+              <label className={styles.compareToggle}>
+                <input
+                  type="checkbox"
+                  checked={compareMode}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setCompareMode(true);
+                    } else {
+                      handleExitCompareMode();
+                    }
+                  }}
                 />
-              ) : selectedBrick ? (
-                // Chi tiết 1 dạng gạch (giữ nguyên như cũ)
-                <>
-                  <header className={styles.detailHeader}>
-                    <div>
-                      <h1 className={styles.detailTitle}>{selectedBrick.name}</h1>
-                      <p className={styles.detailSubtitle}>
-                        Thông tin chi tiết cho dạng gạch ID #{selectedBrick.id}
-                      </p>
-                    </div>
-                    <div className={styles.detailActions}>
-                      {canUpdate && (
-                        <>
-                          <button type="button" className={styles.secondaryButton} onClick={() => openEditModal(selectedBrick)}>
-                            <Pencil size={14} />
-                            <span>Chỉnh sửa</span>
-                          </button>
-                          <button type="button" className={styles.dangerButton} onClick={() => handleDelete(selectedBrick.id)}>
-                            <Trash2 size={14} />
-                            <span>Xoá</span>
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </header>
-
-                  {/* Nội dung chi tiết giữ nguyên */}
-                  <div className={styles.summaryRow}>
-                    <div className={styles.summaryCard}>
-                      <h3>Chi tiết</h3>
-                      <div className={styles.summaryGrid}>
-                        <div className={styles.summaryItem}><span className={styles.summaryLabel}>Mã dạng gạch</span><span className={styles.summaryValue}>{selectedBrick.id}</span></div>
-                        <div className={styles.summaryItem}><span className={styles.summaryLabel}>Kích thước</span><span className={styles.summaryValue}>{selectedBrick.tileSize || '-'}</span></div>
-                        <div className={styles.summaryItem}><span className={styles.summaryLabel}>Đơn vị</span><span className={styles.summaryValue}>{selectedBrick.unit || 'm²'}</span></div>
-                        <div className={styles.summaryItem}><span className={styles.summaryLabel}>Phân xưởng</span><span className={styles.summaryValue}>{selectedBrick.workshop || '-'}</span></div>
-                        <div className={styles.summaryItem}><span className={styles.summaryLabel}>Dây chuyền</span><span className={styles.summaryValue}>{selectedBrick.productionLine || '-'}</span></div>
-                        <div className={styles.summaryItem}><span className={styles.summaryLabel}>Chu kỳ khoán (phút)</span><span className={styles.summaryValue}>{formatNumber(selectedBrick.contractCycle)}</span></div>
-                        <div className={styles.summaryItem}><span className={styles.summaryLabel}>SL ra lò (m²)</span><span className={styles.summaryValue}>{formatNumber(selectedBrick.kilnOutput)}</span></div>
-                        <div className={styles.summaryItem}><span className={styles.summaryLabel}>SL chính phẩm (m²)</span><span className={styles.summaryValue}>{formatNumber(selectedBrick.qualityProductOutput)}</span></div>
-                      </div>
-                      {selectedBrick.description && <p className={styles.summaryDescription}>{selectedBrick.description}</p>}
-                    </div>
-
-                    <div className={styles.metadataCard}>
-                      <h3>Thông tin trạng thái</h3>
-                      <div className={styles.summaryItem}><span className={styles.summaryLabel}>Trạng thái</span><span className={styles.summaryValue}>{selectedBrick.isActive !== false ? 'Đang sử dụng' : 'Ngưng sử dụng'}</span></div>
-                      <div className={styles.summaryItem}><span className={styles.summaryLabel}>Dây chuyền đang chạy</span><span className={styles.summaryValue}>{selectedBrick.activeProductionLineId ? `ID #${selectedBrick.activeProductionLineId}` : '-'}</span></div>
-                      <div className={styles.summaryItem}><span className={styles.summaryLabel}>Lần hoạt động gần nhất</span><span className={styles.summaryValue}>{formatDate(selectedBrick.lastActiveAt)}</span></div>
-                    </div>
-                  </div>
-
-                  <section className={styles.chartCard}>
-                    <div className={styles.chartHeaderRow}>
-                      <h3>{chartMode === 'month' ? 'Sản lượng ước tính 12 tháng gần nhất (mock)' : 'Sản lượng theo ngày trong tuần (mock)'}</h3>
-                      <select className={styles.chartModeSelect} value={chartMode} onChange={(e) => setChartMode(e.target.value as ChartMode)}>
-                        <option value="day">Theo ngày</option>
-                        <option value="month">Theo tháng</option>
-                      </select>
-                    </div>
-                    <MockProductionChart brickId={selectedBrick.id} mode={chartMode} />
-                  </section>
-
-                  {/* Line Chart cho single brick */}
-                  <section className={styles.chartCard}>
-                    <h3>Xu hướng sản lượng theo thời gian</h3>
-                    <MockLineChart brickId={selectedBrick.id} mode={chartMode} />
-                  </section>
-                </>
-              ) : (
-                <div className={styles.emptyDetail}>
-                  <h2>Chọn một dạng gạch ở danh sách bên trái</h2>
-                  <p>Bạn sẽ xem được chi tiết và biểu đồ sản lượng của dạng gạch tại đây.</p>
-                </div>
+                <span>Chế độ so sánh</span>
+              </label>
+              {compareMode && selectedForCompare.size >= 2 && (
+                <Button onClick={handleEnterCompareMode}>
+                  <GitCompare size={18} style={{ marginRight: "0.5rem" }} />
+                  Xem so sánh ({selectedForCompare.size})
+                </Button>
               )}
 
-              <footer className={styles.footerInfo}>
-                <span>Tổng {brickTypes.length} dạng gạch, trong đó {totalActive} đang được sử dụng.</span>
-              </footer>
-            </section>
+              <Button typeBtn="secondaryButton">
+                <Download size={18} style={{ marginRight: "0.5rem" }} />
+                Xuất dữ liệu
+              </Button>
+
+              {/* Always show create button, with permission check */}
+              <Button onClick={handleCreate} disabled={!canCreate}>
+                <Plus size={18} style={{ marginRight: "0.5rem" }} />
+                Thêm dòng gạch
+              </Button>
+            </div>
           </div>
-        )}
-      </main>
 
-      {/* Modal thêm/sửa giữ nguyên */}
-      {showModal && (
-        <div className={styles.modalOverlay}>
-          <div className={styles.modal}>
-            <header className={styles.modalHeader}>
-              <h2>{editingBrick ? 'Cập nhật dạng gạch' : 'Thêm dạng gạch'}</h2>
-              <button type="button" className={styles.closeBtn} onClick={handleCloseModal}>×</button>
-            </header>
-            <form className={styles.form} onSubmit={handleSubmit}>
-              {/* Form giữ nguyên như cũ */}
-              {/* ... (copy nguyên form từ code gốc của bạn) */}
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+          {/* Grid View with BrickTypeList */}
+          {viewMode === "grid" ? (
+            <div className={styles.gridContainer}>
+              <div className={styles.gridMain}>
+                <BrickTypeList
+                  brickTypes={brickTypes}
+                  selectedBrickId={selectedBrickId}
+                  compareMode={compareMode}
+                  selectedForCompare={selectedForCompare}
+                  canUpdate={canUpdate}
+                  onSelectBrick={handleSelectBrick}
+                  onToggleCompare={handleToggleCompare}
+                  onCreateNew={canCreate ? handleCreate : undefined}
+                  onEdit={canUpdate ? handleEdit : undefined}
+                  onDelete={
+                    canDelete
+                      ? (id) => {
+                          const brick = brickTypes.find((b) => b.id === id);
+                          if (brick) handleDeleteClick(brick);
+                        }
+                      : undefined
+                  }
+                  onCopy={canUpdate ? handleCopy : undefined}
+                  onToggleActive={handleToggleActive}
+                  onEnterCompareMode={handleEnterCompareMode}
+                  onExitCompareMode={handleExitCompareMode}
+                />
+              </div>
 
-// Component So sánh nhiều
-function ComparePanel({ brickIds, brickTypes, chartMode, setChartMode, onExit }: { brickIds: number[], brickTypes: BrickType[], chartMode: ChartMode, setChartMode: (m: ChartMode) => void, onExit: () => void }) {
-  const bricksToCompare = brickTypes.filter(b => brickIds.includes(b.id));
-  const colors = ['#4f46e5', '#ec4899', '#14b8a6', '#f59e0b', '#8b5cf6', '#ef4444', '#06b6d4'];
-
-  return (
-    <>
-      <header className={styles.detailHeader}>
-        <div>
-          <h1 className={styles.detailTitle}>So sánh {brickIds.length} dạng gạch</h1>
-          <p className={styles.detailSubtitle}>So sánh chỉ số và sản lượng ước tính</p>
-        </div>
-        <button type="button" className={styles.secondaryButton} onClick={onExit}>
-          <ArrowLeft size={16} /> Quay lại chi tiết
-        </button>
-      </header>
-
-      {/* Bảng so sánh */}
-      <div className={styles.summaryCard}>
-        <h3>So sánh chỉ số chính</h3>
-        <div className={styles.tableWrapper}>
-          <table className={styles.compareTable}>
-            <thead>
-              <tr>
-                <th>Chỉ số</th>
-                {bricksToCompare.map(b => (
-                  <th key={b.id}>{b.name}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { label: 'Kích thước', key: 'tileSize' },
-                { label: 'Dây chuyền', key: 'productionLine' },
-                { label: 'Chu kỳ khoán (phút)', key: 'contractCycle', format: formatNumber },
-                { label: 'SL ra lò (m²)', key: 'kilnOutput', format: formatNumber },
-                { label: 'SL chính phẩm (m²)', key: 'qualityProductOutput', format: formatNumber },
-              ].map(row => (
-                <tr key={row.label}>
-                  <td className={styles.compareTableLabel}>{row.label}</td>
-                  {bricksToCompare.map(b => (
-                    <td key={b.id}>
-                      {row.format ? row.format((b as any)[row.key as keyof BrickType]) : (b as any)[row.key as keyof BrickType] || '-'}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-              <tr>
-                <td className={styles.compareTableLabel}>Tỷ lệ chính phẩm</td>
-                {bricksToCompare.map(b => {
-                  const ratio = b.kilnOutput && b.qualityProductOutput ? (b.qualityProductOutput / b.kilnOutput * 100).toFixed(1) : '-';
-                  return <td key={b.id} className={ratio !== '-' && Number(ratio) >= 95 ? styles.ratioGood : styles.ratioBad}>{ratio}%</td>;
-                })}
-              </tr>
-              <tr className={styles.productionYTDRow}>
-                <td className={styles.compareTableLabel}>Sản lượng từ đầu năm</td>
-                {bricksToCompare.map(b => {
-                  const ytd = getYearToDateProduction(b.id);
-                  return <td key={b.id} className={styles.productionYTD}>{formatNumber(ytd)} m²</td>;
-                })}
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Biểu đồ so sánh */}
-      <section className={styles.chartCard}>
-        <div className={styles.chartHeaderRow}>
-          <h3>Sản lượng ước tính (mock)</h3>
-          <select className={styles.chartModeSelect} value={chartMode} onChange={e => setChartMode(e.target.value as ChartMode)}>
-            <option value="day">Theo ngày</option>
-            <option value="month">Theo tháng</option>
-          </select>
-        </div>
-        <div className={styles.chartWrapper}>
-          {(() => {
-            const maxValue = Math.max(
-              ...bricksToCompare.flatMap(brick => {
-                const seriesData = chartMode === 'month' ? getMockMonthlySeries(brick.id) : getMockDailySeries(brick.id);
-                const dataArray = chartMode === 'month' ? (seriesData as ReturnType<typeof getMockMonthlySeries>).months : (seriesData as ReturnType<typeof getMockDailySeries>).days;
-                return dataArray.map(d => d.value);
-              })
-            );
-            const yAxisSteps = 5;
-            const stepValue = Math.ceil(maxValue / yAxisSteps / 1000) * 1000;
-            
-            return (
-              <div style={{ display: 'flex', gap: '0.75rem' }}>
-                {/* Y-axis */}
-                <div className={styles.chartYAxis}>
-                  {Array.from({ length: yAxisSteps + 1 }, (_, i) => yAxisSteps - i).map(step => (
-                    <div key={step} className={styles.yAxisLabel}>
-                      {formatNumber(step * stepValue)}
-                    </div>
-                  ))}
+              {/* Detail Panel */}
+              {showDetailPanel && selectedBrickId && (
+                <div className={styles.detailPanel}>
+                  <div className={styles.detailPanelHeader}>
+                    <h3>Chi tiết dòng gạch</h3>
+                    <button
+                      className={styles.closeDetailBtn}
+                      onClick={() => setShowDetailPanel(false)}
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <BrickTypeStats brickId={selectedBrickId} />
                 </div>
-
-                {/* Chart bars */}
-                <div className={styles.chartBarsContainer}>
-                  <div className={styles.chartBars}>
-                    {(chartMode === 'month' ? Array.from({ length: 12 }, (_, i) => i) : Array.from({ length: 7 }, (_, i) => i)).map(idx => (
-                      <div key={idx} className={styles.chartBarItem}>
-                        <div className={styles.chartBarTrack}>
-                          <div style={{ display: 'flex', gap: '3px', height: '100%', alignItems: 'flex-end', width: '100%', justifyContent: 'center' }}>
-                            {bricksToCompare.map((brick, i) => {
-                              const seriesData = chartMode === 'month' ? getMockMonthlySeries(brick.id) : getMockDailySeries(brick.id);
-                              const dataArray = chartMode === 'month' ? (seriesData as ReturnType<typeof getMockMonthlySeries>).months : (seriesData as ReturnType<typeof getMockDailySeries>).days;
-                              const value = dataArray[idx]?.value || 0;
-                              const height = maxValue ? (value / maxValue) * 100 : 0;
-                              return (
-                                <div
-                                  key={brick.id}
-                                  title={`${brick.name}: ${value.toLocaleString()} m²`}
-                                  style={{
-                                    flex: 1,
-                                    maxWidth: '20px',
-                                    background: colors[i % colors.length],
-                                    borderRadius: '4px 4px 0 0',
-                                    height: `${height}%`,
-                                    minHeight: '4px',
-                                    transition: 'all 0.3s ease',
-                                  }}
-                                />
-                              );
-                            })}
-                          </div>
-                        </div>
-                        <span className={styles.chartBarLabel}>
-                          {chartMode === 'month' ? `Th${idx + 1}` : ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'][idx]}
-                        </span>
-                      </div>
-                    ))}
+              )}
+            </div>
+          ) : (
+            /* Table View - Original Implementation */
+            <>
+              {/* Filter Panel */}
+              <div className={styles.filterPanel}>
+                <div className={styles.searchRow}>
+                  <div className={styles.searchInputWrapper}>
+                    <Search className={styles.searchIcon} size={18} />
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm mã sản phẩm, tên..."
+                      className={styles.searchInput}
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                    />
                   </div>
                 </div>
-              </div>
-            );
-          })()}
 
-          <div className={styles.chartLegend}>
-            {bricksToCompare.map((b, i) => (
-              <div key={b.id} className={styles.chartLegendItem}>
-                <div className={styles.chartLegendColor} style={{ background: colors[i % colors.length] }} />
-                <span>{b.name}</span>
-                <span className={styles.chartLegendValue}>({formatNumber(getYearToDateProduction(b.id))} m²)</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Line Charts - Xu hướng từng dạng gạch */}
-      <div className={styles.lineChartsGrid}>
-        {bricksToCompare.map((brick, brickIndex) => {
-          const seriesData = chartMode === 'month' ? getMockMonthlySeries(brick.id) : getMockDailySeries(brick.id);
-          const dataArray = chartMode === 'month' ? (seriesData as ReturnType<typeof getMockMonthlySeries>).months : (seriesData as ReturnType<typeof getMockDailySeries>).days;
-          const maxValue = seriesData.max;
-          const dataLength = dataArray.length;
-          
-          const yAxisSteps = 4;
-          const stepValue = Math.ceil(maxValue / yAxisSteps / 1000) * 1000;
-          
-          return (
-            <section key={brick.id} className={styles.chartCard}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <div className={styles.chartLegendColor} style={{ background: colors[brickIndex % colors.length], width: '12px', height: '12px', borderRadius: '50%' }} />
-                <h3 style={{ margin: 0 }}>{brick.name}</h3>
-              </div>
-              
-              <div className={styles.chartWrapper}>
-                <div style={{ display: 'flex', gap: '0.75rem' }}>
-                  {/* Y-axis */}
-                  <div className={styles.chartYAxis} style={{ height: '120px', padding: '0.25rem 0' }}>
-                    {Array.from({ length: yAxisSteps + 1 }, (_, i) => yAxisSteps - i).map(step => (
-                      <div key={step} className={styles.yAxisLabel}>
-                        {formatNumber(step * stepValue)}
-                      </div>
-                    ))}
+                <div className={styles.filtersGrid}>
+                  <div className={styles.filterItem}>
+                    <label className={styles.filterLabel}>Loại gạch</label>
+                    <select
+                      className={styles.filterSelect}
+                      value={typeFilter}
+                      onChange={(e) => setTypeFilter(e.target.value)}
+                    >
+                      <option value="all">Tất cả</option>
+                      <option value="Granite">Granite</option>
+                      <option value="Porcelain">Porcelain</option>
+                      <option value="Ceramic">Ceramic</option>
+                      <option value="Semi-Porcelain">Semi-Porcelain</option>
+                    </select>
                   </div>
 
-                  {/* Line Chart Container */}
-                  <div className={styles.lineChartContainer}>
-                    <svg className={styles.lineChartSvg} viewBox="0 0 600 120" preserveAspectRatio="none" style={{ height: '120px' }}>
-                      {/* Grid lines */}
-                      {Array.from({ length: yAxisSteps + 1 }, (_, i) => (
-                        <line
-                          key={i}
-                          x1="0"
-                          y1={i * (120 / yAxisSteps)}
-                          x2="600"
-                          y2={i * (120 / yAxisSteps)}
-                          stroke="#e5e7eb"
-                          strokeWidth="1"
-                        />
+                  <div className={styles.filterItem}>
+                    <label className={styles.filterLabel}>
+                      Kích thước (mm)
+                    </label>
+                    <select
+                      className={styles.filterSelect}
+                      value={sizeFilter}
+                      onChange={(e) => setSizeFilter(e.target.value)}
+                    >
+                      <option value="all">Tất cả</option>
+                      {uniqueSizes.map((size) => (
+                        <option key={size} value={size as string}>
+                          {size}
+                        </option>
                       ))}
-                      
-                      {/* Area fill */}
-                      <defs>
-                        <linearGradient id={`gradient-${brick.id}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                          <stop offset="0%" stopColor={colors[brickIndex % colors.length]} stopOpacity="0.2" />
-                          <stop offset="100%" stopColor={colors[brickIndex % colors.length]} stopOpacity="0.02" />
-                        </linearGradient>
-                      </defs>
-                      
-                      <path
-                        d={`
-                          M 0,120
-                          ${dataArray.map((d, i) => {
-                            const x = (i / (dataLength - 1)) * 600;
-                            const y = 120 - (d.value / maxValue) * 120;
-                            return i === 0 ? `L ${x},${y}` : `L ${x},${y}`;
-                          }).join(' ')}
-                          L 600,120
-                          Z
-                        `}
-                        fill={`url(#gradient-${brick.id})`}
-                      />
-                      
-                      {/* Line */}
-                      <polyline
-                        points={dataArray.map((d, i) => {
-                          const x = (i / (dataLength - 1)) * 600;
-                          const y = 120 - (d.value / maxValue) * 120;
-                          return `${x},${y}`;
-                        }).join(' ')}
-                        fill="none"
-                        stroke={colors[brickIndex % colors.length]}
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      
-                      {/* Points */}
-                      {dataArray.map((d, i) => {
-                        const x = (i / (dataLength - 1)) * 600;
-                        const y = 120 - (d.value / maxValue) * 120;
-                        return (
-                          <circle
-                            key={i}
-                            cx={x}
-                            cy={y}
-                            r="3.5"
-                            fill={colors[brickIndex % colors.length]}
-                            stroke="white"
-                            strokeWidth="2"
+                    </select>
+                  </div>
+
+                  <div className={styles.filterItem}>
+                    <label className={styles.filterLabel}>Độ dày (mm)</label>
+                    <select
+                      className={styles.filterSelect}
+                      value={thicknessFilter}
+                      onChange={(e) => setThicknessFilter(e.target.value)}
+                    >
+                      <option value="all">Tất cả</option>
+                      {uniqueThicknesses.map((t) => (
+                        <option key={t} value={t}>
+                          {t} mm
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className={styles.filterItem}>
+                    <label className={styles.filterLabel}>Chất lượng</label>
+                    <select
+                      className={styles.filterSelect}
+                      value={qualityFilter}
+                      onChange={(e) => setQualityFilter(e.target.value)}
+                    >
+                      <option value="all">Tất cả</option>
+                      {uniqueQualities.map((q) => (
+                        <option key={q} value={q as string}>
+                          {q}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table Card */}
+              <div className={styles.card}>
+                <div className={styles.tableContainer}>
+                  <table className={styles.table}>
+                    <thead>
+                      <tr>
+                        {compareMode && (
+                          <th style={{ width: "50px" }}>
+                            <input
+                              type="checkbox"
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  const idsToSelect = paginatedBricks
+                                    .slice(0, 5)
+                                    .map((b) => b.id);
+                                  setSelectedForCompare(new Set(idsToSelect));
+                                } else {
+                                  setSelectedForCompare(new Set());
+                                }
+                              }}
+                              title="Chọn tất cả"
+                            />
+                          </th>
+                        )}
+                        <th style={{ width: "60px" }}>STT</th>
+                        <th>Tên sản phẩm (EN)</th>
+                        <th>Kích thước</th>
+                        <th>Độ dày</th>
+                        <th>Loại gạch</th>
+                        <th>Trọng lượng (kg/m²)</th>
+                        <th>Viên/Thùng</th>
+                        <th style={{ textAlign: "right" }}>Hành động</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        <tr>
+                          <td
+                            colSpan={compareMode ? 9 : 8}
+                            style={{ textAlign: "center", padding: "3rem" }}
                           >
-                            <title>{d.label}: {d.value.toLocaleString()} m²</title>
-                          </circle>
-                        );
-                      })}
-                    </svg>
-                    
-                    {/* X-axis labels */}
-                    <div className={styles.lineChartXAxis}>
-                      {dataArray.map((d, i) => (
-                        <span key={i} className={styles.xAxisLabel}>
-                          {d.label}
-                        </span>
-                      ))}
-                    </div>
+                            Đang tải dữ liệu...
+                          </td>
+                        </tr>
+                      ) : paginatedBricks.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={compareMode ? 9 : 8}
+                            style={{ textAlign: "center", padding: "3rem" }}
+                          >
+                            Không tìm thấy dữ liệu phù hợp
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedBricks.map((brick, index) => (
+                          <tr
+                            key={brick.id}
+                            className={
+                              selectedForCompare.has(brick.id)
+                                ? styles.selectedRow
+                                : ""
+                            }
+                          >
+                            {compareMode && (
+                              <td>
+                                <input
+                                  type="checkbox"
+                                  checked={selectedForCompare.has(brick.id)}
+                                  onChange={(e) => {
+                                    e.stopPropagation();
+                                    handleToggleCompare(brick.id);
+                                  }}
+                                  disabled={
+                                    !selectedForCompare.has(brick.id) &&
+                                    selectedForCompare.size >= 5
+                                  }
+                                />
+                              </td>
+                            )}
+                            <td className={styles.colIndex}>
+                              {String(
+                                (currentPage - 1) * pageSize + index + 1
+                              ).padStart(2, "0")}
+                            </td>
+                            <td>
+                              <div className={styles.productName}>
+                                {brick.name}
+                              </div>
+                              {brick.nameEnglish && (
+                                <div className={styles.productCode}>
+                                  {brick.nameEnglish}
+                                </div>
+                              )}
+                            </td>
+                            <td className={styles.specText}>
+                              {brick.tileSize}
+                            </td>
+                            <td className={styles.specText}>
+                              {brick.thickness ? `${brick.thickness} mm` : "-"}
+                            </td>
+                            <td>
+                              {brick.brickType && (
+                                <span
+                                  className={`${styles.badge} ${getBadgeClass(
+                                    brick.brickType
+                                  )}`}
+                                >
+                                  {brick.brickType}
+                                </span>
+                              )}
+                            </td>
+                            <td className={styles.specText}>
+                              {brick.weightPerM2 || "-"}
+                            </td>
+                            <td className={styles.specText}>
+                              {brick.piecesPerBox || "-"}
+                            </td>
+                            <td>
+                              <div className={styles.actionButtons}>
+                                <button
+                                  className={`${styles.iconButton} ${styles.view}`}
+                                  onClick={() => handleEdit(brick)}
+                                  title="Xem chi tiết"
+                                >
+                                  <Eye size={18} />
+                                </button>
+                                {canUpdate && (
+                                  <button
+                                    className={`${styles.iconButton} ${styles.edit}`}
+                                    onClick={() => handleEdit(brick)}
+                                    title="Chỉnh sửa"
+                                  >
+                                    <Pencil size={18} />
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  <button
+                                    className={`${styles.iconButton} ${styles.delete}`}
+                                    onClick={() => handleDeleteClick(brick)}
+                                    title="Xóa"
+                                  >
+                                    <Trash2 size={18} />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                <div className={styles.pagination}>
+                  <div className={styles.paginationInfo}>
+                    Hiển thị {(currentPage - 1) * pageSize + 1}-
+                    {Math.min(currentPage * pageSize, filteredBricks.length)}{" "}
+                    của {filteredBricks.length} tiêu chuẩn
+                  </div>
+                  <div className={styles.paginationControls}>
+                    <button
+                      className={styles.pageButton}
+                      onClick={() => handlePageChange(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                      (page) => (
+                        <button
+                          key={page}
+                          className={`${styles.pageButton} ${
+                            currentPage === page ? styles.active : ""
+                          }`}
+                          onClick={() => handlePageChange(page)}
+                        >
+                          {page}
+                        </button>
+                      )
+                    )}
+
+                    <button
+                      className={styles.pageButton}
+                      onClick={() => handlePageChange(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      <ChevronRight size={16} />
+                    </button>
                   </div>
                 </div>
               </div>
-            </section>
-          );
-        })}
-      </div>
-    </>
-  );
-}
+            </>
+          )}
 
-interface MockChartProps {
-  brickId: number;
-  mode: 'day' | 'month';
-}
-
-function MockProductionChart({ brickId, mode }: MockChartProps) {
-  const seriesData = mode === 'month' ? getMockMonthlySeries(brickId) : getMockDailySeries(brickId);
-  const dataArray = mode === 'month' ? (seriesData as ReturnType<typeof getMockMonthlySeries>).months : (seriesData as ReturnType<typeof getMockDailySeries>).days;
-  const maxValue = seriesData.max;
-  
-  const yAxisSteps = 5;
-  const stepValue = Math.ceil(maxValue / yAxisSteps / 1000) * 1000;
-  const primaryColor = '#6366f1';
-
-  return (
-    <div className={styles.chartWrapper}>
-      <div style={{ display: 'flex', gap: '0.75rem' }}>
-        {/* Y-axis */}
-        <div className={styles.chartYAxis}>
-          {Array.from({ length: yAxisSteps + 1 }, (_, i) => yAxisSteps - i).map(step => (
-            <div key={step} className={styles.yAxisLabel}>
-              {formatNumber(step * stepValue)}
-            </div>
-          ))}
-        </div>
-
-        {/* Chart bars */}
-        <div className={styles.chartBarsContainer}>
-          <div className={styles.chartBars}>
-            {dataArray.map((item, idx) => {
-              const heightPercent = maxValue ? (item.value / maxValue) * 100 : 0;
-              return (
-                <div key={item.label} className={styles.chartBarItem}>
-                  <div className={styles.chartBarTrack}>
-                    <div style={{ display: 'flex', gap: '3px', height: '100%', alignItems: 'flex-end', width: '100%', justifyContent: 'center' }}>
-                      <div
-                        title={`${item.value.toLocaleString()} m²`}
-                        style={{
-                          flex: 1,
-                          maxWidth: '20px',
-                          background: primaryColor,
-                          borderRadius: '4px 4px 0 0',
-                          height: `${heightPercent}%`,
-                          minHeight: '4px',
-                          transition: 'all 0.3s ease',
-                        }}
-                      />
-                    </div>
-                  </div>
-                  <span className={styles.chartBarLabel}>{item.label}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MockLineChart({ brickId, mode }: MockChartProps) {
-  const seriesData = mode === 'month' ? getMockMonthlySeries(brickId) : getMockDailySeries(brickId);
-  const dataArray = mode === 'month' ? (seriesData as ReturnType<typeof getMockMonthlySeries>).months : (seriesData as ReturnType<typeof getMockDailySeries>).days;
-  const maxValue = seriesData.max;
-  const dataLength = dataArray.length;
-  
-  const yAxisSteps = 4;
-  const stepValue = Math.ceil(maxValue / yAxisSteps / 1000) * 1000;
-  const primaryColor = '#6366f1';
-
-  return (
-    <div className={styles.chartWrapper}>
-      <div style={{ display: 'flex', gap: '0.75rem' }}>
-        {/* Y-axis */}
-        <div className={styles.chartYAxis} style={{ height: '120px', padding: '0.25rem 0' }}>
-          {Array.from({ length: yAxisSteps + 1 }, (_, i) => yAxisSteps - i).map(step => (
-            <div key={step} className={styles.yAxisLabel}>
-              {formatNumber(step * stepValue)}
-            </div>
-          ))}
-        </div>
-
-        {/* Line Chart Container */}
-        <div className={styles.lineChartContainer}>
-          <svg className={styles.lineChartSvg} viewBox="0 0 600 120" preserveAspectRatio="none" style={{ height: '120px' }}>
-            {/* Grid lines */}
-            {Array.from({ length: yAxisSteps + 1 }, (_, i) => (
-              <line
-                key={i}
-                x1="0"
-                y1={i * (120 / yAxisSteps)}
-                x2="600"
-                y2={i * (120 / yAxisSteps)}
-                stroke="#e5e7eb"
-                strokeWidth="1"
-              />
-            ))}
-            
-            {/* Area fill */}
-            <defs>
-              <linearGradient id={`gradient-single-${brickId}`} x1="0%" y1="0%" x2="0%" y2="100%">
-                <stop offset="0%" stopColor={primaryColor} stopOpacity="0.2" />
-                <stop offset="100%" stopColor={primaryColor} stopOpacity="0.02" />
-              </linearGradient>
-            </defs>
-            
-            <path
-              d={`
-                M 0,120
-                ${dataArray.map((d, i) => {
-                  const x = (i / (dataLength - 1)) * 600;
-                  const y = 120 - (d.value / maxValue) * 120;
-                  return i === 0 ? `L ${x},${y}` : `L ${x},${y}`;
-                }).join(' ')}
-                L 600,120
-                Z
-              `}
-              fill={`url(#gradient-single-${brickId})`}
+          {/* Modals */}
+          <Dialog
+            open={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            title={editingBrick ? "Cập nhật dòng gạch" : "Thêm dòng gạch mới"}
+          >
+            <BrickTypeForm
+              brick={editingBrick}
+              onSubmit={handleSubmitForm}
+              onCancel={() => setIsModalOpen(false)}
+              loading={createMutation.loading || updateMutation.loading}
             />
-            
-            {/* Line */}
-            <polyline
-              points={dataArray.map((d, i) => {
-                const x = (i / (dataLength - 1)) * 600;
-                const y = 120 - (d.value / maxValue) * 120;
-                return `${x},${y}`;
-              }).join(' ')}
-              fill="none"
-              stroke={primaryColor}
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-            
-            {/* Points */}
-            {dataArray.map((d, i) => {
-              const x = (i / (dataLength - 1)) * 600;
-              const y = 120 - (d.value / maxValue) * 120;
-              return (
-                <circle
-                  key={i}
-                  cx={x}
-                  cy={y}
-                  r="3.5"
-                  fill={primaryColor}
-                  stroke="white"
-                  strokeWidth="2"
+          </Dialog>
+
+          <Dialog
+            open={isDeleteModalOpen}
+            onClose={() => setIsDeleteModalOpen(false)}
+            title="Xác nhận xóa"
+          >
+            <div style={{ padding: "1rem 0" }}>
+              <p>
+                Bạn có chắc chắn muốn xóa dòng gạch{" "}
+                <strong>{brickToDelete?.name}</strong> không?
+              </p>
+              <p
+                style={{
+                  fontSize: "0.9rem",
+                  color: "#6b7280",
+                  marginTop: "0.5rem",
+                }}
+              >
+                Hành động này không thể hoàn tác.
+              </p>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  gap: "0.75rem",
+                  marginTop: "1.5rem",
+                }}
+              >
+                <Button
+                  typeBtn="secondaryButton"
+                  onClick={() => setIsDeleteModalOpen(false)}
                 >
-                  <title>{d.label}: {d.value.toLocaleString()} m²</title>
-                </circle>
-              );
-            })}
-          </svg>
-          
-          {/* X-axis labels */}
-          <div className={styles.lineChartXAxis}>
-            {dataArray.map((d, i) => (
-              <span key={i} className={styles.xAxisLabel}>
-                {d.label}
-              </span>
-            ))}
-          </div>
-        </div>
-      </div>
+                  Hủy bỏ
+                </Button>
+                <Button
+                  onClick={handleConfirmDelete}
+                  loading={deleteMutation.loading}
+                  style={{ backgroundColor: "#ef4444", borderColor: "#ef4444" }}
+                >
+                  Xóa
+                </Button>
+              </div>
+            </div>
+          </Dialog>
+        </>
+      )}
     </div>
   );
 }

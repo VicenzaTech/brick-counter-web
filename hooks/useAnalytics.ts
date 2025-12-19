@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import io, { Socket } from 'socket.io-client';
+import { useState, useEffect } from "react";
+import io from "socket.io-client";
 
 interface DeviceAnalytics {
   deviceId: string;
@@ -17,7 +17,7 @@ interface DeviceAnalytics {
   isRunning: boolean;
   idleTimeSeconds: number;
   uptimeSeconds: number;
-  trend: 'increasing' | 'stable' | 'decreasing' | 'stopped';
+  trend: "increasing" | "stable" | "decreasing" | "stopped";
   efficiencyPercent?: number;
 }
 
@@ -37,59 +37,65 @@ interface UseAnalyticsReturn {
   isConnected: boolean;
 }
 
-export function useAnalytics(baseUrl: string = 'http://localhost:5555'): UseAnalyticsReturn {
-  const [socket, setSocket] = useState<Socket | null>(null);
+export function useAnalytics(
+  baseUrl: string = "http://localhost:5555"
+): UseAnalyticsReturn {
   const [isConnected, setIsConnected] = useState(false);
-  const [lineMetrics, setLineMetrics] = useState<Map<string, LineAnalytics>>(new Map());
-  const [deviceMetrics, setDeviceMetrics] = useState<Map<string, DeviceAnalytics>>(new Map());
+  const [lineMetrics, setLineMetrics] = useState<Map<string, LineAnalytics>>(
+    new Map()
+  );
+  const [deviceMetrics, setDeviceMetrics] = useState<
+    Map<string, DeviceAnalytics>
+  >(new Map());
 
   useEffect(() => {
     // Connect to analytics namespace
     const socketInstance = io(`${baseUrl}/analytics`, {
-      transports: ['websocket'],
+      transports: ["websocket"],
       reconnection: true,
       reconnectionDelay: 1000,
       reconnectionAttempts: 10,
     });
 
-    socketInstance.on('connect', () => {
-      console.log('✅ Connected to analytics WebSocket');
+    socketInstance.on("connect", () => {
+      console.log("✅ Connected to analytics WebSocket");
       setIsConnected(true);
     });
 
-    socketInstance.on('disconnect', () => {
-      console.log('❌ Disconnected from analytics WebSocket');
+    socketInstance.on("disconnect", () => {
+      console.log("❌ Disconnected from analytics WebSocket");
       setIsConnected(false);
     });
 
     // Listen for line updates
-    socketInstance.on('line-update', (data: { lineName: string; data: LineAnalytics }) => {
-      setLineMetrics((prev) => {
-        const newMap = new Map(prev);
-        newMap.set(data.lineName, data.data);
-        return newMap;
-      });
-
-      // Update device metrics
-      data.data.devices.forEach((device) => {
-        setDeviceMetrics((prev) => {
+    socketInstance.on(
+      "line-update",
+      (data: { lineName: string; data: LineAnalytics }) => {
+        setLineMetrics((prev) => {
           const newMap = new Map(prev);
-          newMap.set(device.deviceId, device);
+          newMap.set(data.lineName, data.data);
           return newMap;
         });
-      });
-    });
+
+        // Update device metrics
+        data.data.devices.forEach((device) => {
+          setDeviceMetrics((prev) => {
+            const newMap = new Map(prev);
+            newMap.set(device.deviceId, device);
+            return newMap;
+          });
+        });
+      }
+    );
 
     // Listen for device updates
-    socketInstance.on('device-update', (device: DeviceAnalytics) => {
+    socketInstance.on("device-update", (device: DeviceAnalytics) => {
       setDeviceMetrics((prev) => {
         const newMap = new Map(prev);
         newMap.set(device.deviceId, device);
         return newMap;
       });
     });
-
-    setSocket(socketInstance);
 
     return () => {
       socketInstance.disconnect();

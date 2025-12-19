@@ -70,6 +70,43 @@
   gap: 12px;
 }
 
+.navContextRow {
+  margin-top: 8px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px dashed rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.08);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #1d4ed8;
+}
+
+.navContextDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #2563eb, #3b82f6);
+  box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.15);
+}
+
+.navContextCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.navContextCopy span {
+  font-weight: 600;
+  color: #1e3a8a;
+}
+
+.navContextCopy small {
+  font-size: 12px;
+  color: #64748b;
+}
+
 .navSection {
   display: flex;
   flex-direction: column;
@@ -97,6 +134,7 @@
   transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease,
     border-color 0.12s ease;
   background: rgba(37, 99, 235, 0.05);
+  user-select: none;
 }
 
 .navItem:hover {
@@ -270,6 +308,9 @@
   .divider,
   .navGroup,
   .bottomSection {
+    display: none;
+  }
+  .navContextRow {
     display: none;
   }
 }
