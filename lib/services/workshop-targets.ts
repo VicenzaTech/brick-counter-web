@@ -92,9 +92,9 @@ export async function fetchWorkshopTargets(
                 if (query?.year) {
                     params.set('year', String(query.year));
                 }
-                if (query?.includeHistory) {
-                    params.set('includeHistory', 'true');
-                }
+                // if (query?.includeHistory) {
+                //     params.set('includeHistory', 'false');
+                // }
                 const queryString = params.toString();
                 const response = await apiFetch(
                     `${WORKSHOP_TARGET_ENDPOINT}${queryString ? `?${queryString}` : ''}`

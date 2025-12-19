@@ -20,6 +20,7 @@ export type ProductionAnalyticsParams = {
     to?: string;
     range?: string;
     useMock?: boolean;
+    allowEmptyResults?: boolean;
 };
 
 export type ProductionAnalyticsSource = 'api' | 'mock-config' | 'mock-fallback';
@@ -42,21 +43,30 @@ const buildCacheKey = (params: ProductionAnalyticsParams) => {
         to: params.to ?? '',
         range: params.range ?? '',
         useMock: params.useMock ?? false,
+        allowEmptyResults: params.allowEmptyResults ?? false,
     };
     return `${ANALYTICS_CACHE_PREFIX}:${JSON.stringify(normalized)}`;
 };
 
 const buildResult = (
     payload: RunsAnalyticsResponse | null,
-    options: { source: ProductionAnalyticsSource; error?: string }
+    options: { source: ProductionAnalyticsSource; error?: string; allowEmptyResults?: boolean }
 ): ProductionAnalyticsResult => {
-    const records = payload?.records?.length ? payload.records : MOCK_ANALYTICS_RECORDS;
-    const kpiCards = payload?.kpiCards?.length ? payload.kpiCards : MOCK_KPI_CARDS;
+    const shouldUsePayloadRecords =
+        options.allowEmptyResults ? Array.isArray(payload?.records) : Boolean(payload?.records?.length);
+    const shouldUsePayloadKpi =
+        options.allowEmptyResults ? Array.isArray(payload?.kpiCards) : Boolean(payload?.kpiCards?.length);
+
+    const records = shouldUsePayloadRecords ? payload?.records ?? [] : MOCK_ANALYTICS_RECORDS;
+    const kpiCards = shouldUsePayloadKpi ? payload?.kpiCards ?? [] : MOCK_KPI_CARDS;
     const lineOptions = payload?.filters?.productionLine?.options?.length
         ? normalizeLineOptions(payload.filters.productionLine.options)
         : MOCK_LINE_OPTIONS;
 
-    const usedMock = !payload?.records?.length || !payload?.kpiCards?.length || options.source !== 'api';
+    const usedMock =
+        options.source !== 'api' ||
+        (!shouldUsePayloadRecords && !options.allowEmptyResults) ||
+        (!shouldUsePayloadKpi && !options.allowEmptyResults);
 
     return {
         records,
@@ -92,12 +102,12 @@ export async function fetchProductionAnalytics(
         cacheKey,
         async () => {
             if (shouldUseMock) {
-                return buildResult(null, { source: 'mock-config' });
+                return buildResult(null, { source: 'mock-config', allowEmptyResults: params.allowEmptyResults });
             }
 
             try {
                 const query = new URLSearchParams();
-                query.set('productionLine', params.productionLine ?? 'all');
+                query.set('productionLineId', params.productionLine ?? 'all');
                 if (params.from && params.to) {
                     query.set('from', params.from);
                     query.set('to', params.to);
@@ -110,12 +120,24 @@ export async function fetchProductionAnalytics(
                     throw new Error('Failed to fetch analytics');
                 }
                 const payload: RunsAnalyticsResponse = await response.json();
-                return buildResult(payload, { source: 'api' });
+                return buildResult(payload, { source: 'api', allowEmptyResults: params.allowEmptyResults });
             } catch (error) {
-                console.warn('Unable to load analytics, using mock data.', error);
-                return buildResult(null, {
+                console.warn('Unable to load analytics.', error);
+                if (shouldUseMock) {
+                    return buildResult(null, {
+                        source: 'mock-fallback',
+                        error: 'Khong the tai du lieu phan tich, dang hien thi du lieu mau.',
+                        allowEmptyResults: params.allowEmptyResults,
+                    });
+                }
+                const emptyPayload: RunsAnalyticsResponse = {
+                    records: [],
+                    kpiCards: [],
+                };
+                return buildResult(emptyPayload, {
                     source: 'mock-fallback',
-                    error: 'Khong the tai du lieu phan tich, dang hien thi du lieu mau.',
+                    error: 'Khong the tai du lieu phan tich tu API.',
+                    allowEmptyResults: params.allowEmptyResults ?? true,
                 });
             }
         },

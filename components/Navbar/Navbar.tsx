@@ -33,6 +33,7 @@ const navItems = [
 
 export default function Navbar() {
     const pathname = usePathname();
+    const isCompareDashboard = pathname?.startsWith('/compare-dashboard');
     const { user, isAuthenticated } = useAuthStore(useShallow(authStateSelector));
     const [menuOpen, setMenuOpen] = useState(false);
     const clearAuth = useAuthStore((s) => s.clearAuth);
@@ -110,6 +111,16 @@ export default function Navbar() {
                         );
                     })}
                 </nav>
+
+                {isCompareDashboard && (
+                    <div className={styles.navContextRow}>
+                        <span className={styles.navContextDot} aria-hidden="true" />
+                        <div className={styles.navContextCopy}>
+                            <span>So sánh hiệu suất</span>
+                            <small>/compare-dashboard</small>
+                        </div>
+                    </div>
+                )}
 
                 <div className={styles.divider}>
                     <Separator />

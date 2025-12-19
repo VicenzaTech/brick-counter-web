@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useReducer, useRef, useCallback, useDeferredValue } from 'react';
+import { useState, useMemo, useEffect, useReducer, useRef, useCallback } from 'react';
 import { Card, Select, Space, Typography, Table, Tag, Tooltip, Modal, Form, Input, InputNumber, message } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import { Line, Doughnut, Bar } from 'react-chartjs-2';
@@ -273,6 +273,7 @@ export default function Dashboard() {
     const workshopTargetChartRef = useRef<WorkshopTargetChart[]>([]);
     const [workshopTargetLoading, setWorkshopTargetLoading] = useState(false);
     const [targetForm] = Form.useForm<WorkshopTargetPayload>();
+    const [pendingWorkshopSyncId, setPendingWorkshopSyncId] = useState<number | null>(null);
     const [datePresets, setDatePresets] = useState<DatePreset[]>(DEFAULT_DATE_PRESETS.map(normalizePresetLabel));
     const [dateRangeSource, setDateRangeSource] = useState<'preset' | 'manual'>('preset');
     const [detailTableState, detailTableDispatch] = useReducer(
@@ -346,7 +347,7 @@ export default function Dashboard() {
         error: analyticsError,
         hasHydrated: hasLoadedAnalytics,
     } = useProductionAnalyticsData(analyticsParams);
-    const deferredAnalyticsRecords = useDeferredValue(analyticsRecords);
+    const deferredAnalyticsRecords = analyticsRecords;
     const targetSummary = useMemo<TargetSummary | null>(() => {
         const sourceRecords = deferredAnalyticsRecords;
         const actual = sourceRecords.reduce((sum, record) => sum + getActualOutput(record), 0);
@@ -406,6 +407,7 @@ export default function Dashboard() {
     const targetWorkshopLabel =
         workshopTarget?.workshopName ??
         (selectedTargetWorkshopId ? `Phân xưởng ${selectedTargetWorkshopId}` : activeWorkshopName);
+    const showTargetSkeleton = workshopTargetLoading;
     const targetStatusDescription = useMemo(() => {
         if (!hasActivePlan) {
             return `Phân xưởng này chưa có mục tiêu cho năm ${targetPlanYear}. Nhấn "Thêm mục tiêu" để bắt đầu.`;
@@ -442,6 +444,48 @@ export default function Dashboard() {
         () => lineOptions.find(option => option.id === selectedLine),
         [lineOptions, selectedLine]
     );
+    const resolvedLineOptions = useMemo(() => {
+        if (selectedLine === 'all' || lineOptions.some(option => option.id === selectedLine)) {
+            return lineOptions;
+        }
+        const workshopMatch = workshops.find(workshop => String(workshop.id) === selectedLine);
+        const fallbackOption = {
+            id: selectedLine,
+            label: workshopMatch?.name ?? `Phân xưởng ${selectedLine}`,
+        };
+        return [...lineOptions, fallbackOption];
+    }, [lineOptions, selectedLine, workshops]);
+    const syncSelectedLineWithWorkshop = useCallback(
+        (workshopId: number | null, options?: { applyFallback?: boolean }) => {
+            if (!workshopId || !lineOptions.length) {
+                return false;
+            }
+            const workshop = workshops.find(item => item.id === workshopId);
+            if (!workshop) {
+                return false;
+            }
+            const normalizedName = workshop.name?.toLowerCase().trim();
+            const match =
+                lineOptions.find(option => option.id === String(workshopId)) ||
+                (normalizedName
+                    ? lineOptions.find(option => option.label.toLowerCase().trim() === normalizedName)
+                    : undefined);
+            if (match) {
+                if (match.id !== selectedLine) {
+                    setSelectedLine(match.id);
+                }
+                return true;
+            }
+            if (options?.applyFallback !== false) {
+                const allOption = lineOptions.find(option => option.id === 'all');
+                if (allOption && allOption.id !== selectedLine) {
+                    setSelectedLine(allOption.id);
+                }
+            }
+            return false;
+        },
+        [lineOptions, selectedLine, workshops]
+    );
     const mockSelectedLineLabel = useMemo(() => {
         if (selectedLine === 'all') {
             return null;
@@ -456,6 +500,34 @@ export default function Dashboard() {
             setSelectedLine(lineOptions[0].id);
         }
     }, [lineOptions, selectedLine]);
+
+    useEffect(() => {
+        if (pendingWorkshopSyncId == null || !lineOptions.length) {
+            return;
+        }
+        syncSelectedLineWithWorkshop(pendingWorkshopSyncId);
+        setPendingWorkshopSyncId(null);
+    }, [pendingWorkshopSyncId, lineOptions, syncSelectedLineWithWorkshop]);
+    const handleWorkshopChange = useCallback(
+        (workshopId: number | null) => {
+            setActiveWorkshopId(workshopId);
+            setSelectedTargetWorkshopId(workshopId ?? undefined);
+            if (!workshopId) {
+                setPendingWorkshopSyncId(null);
+                if (selectedLine !== 'all') {
+                    setSelectedLine('all');
+                }
+                return;
+            }
+            const matched = syncSelectedLineWithWorkshop(workshopId);
+            if (!matched) {
+                setPendingWorkshopSyncId(workshopId);
+            } else {
+                setPendingWorkshopSyncId(null);
+            }
+        },
+        [selectedLine, syncSelectedLineWithWorkshop]
+    );
     const handleDetailTableChange: TableProps<DetailedProductionRecord>['onChange'] = (pagination) => {
         detailTableDispatch({
             type: 'SET_PAGE',
@@ -489,18 +561,32 @@ export default function Dashboard() {
     useEffect(() => {
         let cancelled = false;
         const loadWorkshops = async () => {
-            const result = await fetchWorkshops();
-            if (cancelled) {
-                return;
+            try {
+                const result = await fetchWorkshops();
+                if (cancelled) {
+                    return;
+                }
+                setWorkshops(result);
+                const firstWorkshopId = result[0]?.id ?? null;
+                if (activeWorkshopId == null && firstWorkshopId != null) {
+                    setActiveWorkshopId(firstWorkshopId);
+                    setSelectedTargetWorkshopId(firstWorkshopId);
+                    setPendingWorkshopSyncId(firstWorkshopId);
+                } else if (firstWorkshopId != null) {
+                    setSelectedTargetWorkshopId(prev => prev ?? firstWorkshopId);
+                }
+            } catch (error) {
+                if (!cancelled) {
+                    console.error('Unable to load workshops', error);
+                    messageApi.error('Khong the tai danh sach phan xuong.');
+                }
             }
-            setWorkshops(result);
-            setActiveWorkshopId(prev => prev ?? (result[0]?.id ?? null));
-            setSelectedTargetWorkshopId(prev => prev ?? result[0]?.id);
         };
         loadWorkshops();
         return () => {
             cancelled = true;
         };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {
@@ -598,38 +684,38 @@ export default function Dashboard() {
         }
     };
 
-    const handleDateInputChange = (type: 'start' | 'end', value: string) => {
-        if (!value) {
-            setDateRange(null);
-            setDateRangeSource('preset');
-            return;
-        }
+    // const handleDateInputChange = (type: 'start' | 'end', value: string) => {
+    //     if (!value) {
+    //         setDateRange(null);
+    //         setDateRangeSource('preset');
+    //         return;
+    //     }
 
-        const parsed = dayjs(value);
-        if (!parsed.isValid()) {
-            return;
-        }
+    //     const parsed = dayjs(value);
+    //     if (!parsed.isValid()) {
+    //         return;
+    //     }
 
-        setDateRangeSource('manual');
-        setDateRange(prev => {
-            let start = prev?.[0] ?? parsed;
-            let end = prev?.[1] ?? parsed;
+    //     setDateRangeSource('manual');
+    //     setDateRange(prev => {
+    //         let start = prev?.[0] ?? parsed;
+    //         let end = prev?.[1] ?? parsed;
 
-            if (type === 'start') {
-                start = parsed;
-                if (end && parsed.isAfter(end)) {
-                    end = parsed;
-                }
-            } else {
-                end = parsed;
-                if (start && parsed.isBefore(start)) {
-                    start = parsed;
-                }
-            }
+    //         if (type === 'start') {
+    //             start = parsed;
+    //             if (end && parsed.isAfter(end)) {
+    //                 end = parsed;
+    //             }
+    //         } else {
+    //             end = parsed;
+    //             if (start && parsed.isBefore(start)) {
+    //                 start = parsed;
+    //             }
+    //         }
 
-            return [start, end];
-        });
-    };
+    //         return [start, end];
+    //     });
+    // };
 
     const handleResetFilters = () => {
         setSelectedLine('all');
@@ -1275,10 +1361,10 @@ export default function Dashboard() {
                 if (filters.selectedYear && filters.selectedYear !== selectedTargetYear) {
                     setSelectedTargetYear(filters.selectedYear);
                 }
-                const items = payload.items?.length ? payload.items : workshopTargetItemsRef.current;
+                const items = payload.items?.length ? payload.items : [];
                 setWorkshopTargetItems(items);
                 workshopTargetItemsRef.current = items;
-                const chart = payload.chart?.length ? payload.chart : workshopTargetChartRef.current;
+                const chart = payload.chart?.length ? payload.chart : [];
                 setWorkshopTargetChart(chart);
                 workshopTargetChartRef.current = chart;
                 if (items?.length) {
@@ -1303,7 +1389,7 @@ export default function Dashboard() {
 
     useEffect(() => {
         loadWorkshopTargets();
-    }, [loadWorkshopTargets]);
+    }, [loadWorkshopTargets, selectedTargetWorkshopId]);
     // --- Render giao diện ---
     return (
         // Sử dụng styles từ CSS Module
@@ -1321,8 +1407,7 @@ export default function Dashboard() {
                             value={activeWorkshopId ?? ''}
                             onChange={(event) => {
                                 const value = event.target.value ? Number(event.target.value) : null;
-                                setActiveWorkshopId(value);
-                                setSelectedTargetWorkshopId(value ?? undefined);
+                                handleWorkshopChange(value);
                             }}
                             className={styles.formSelect}
                             disabled={!workshops.length}
@@ -1341,40 +1426,47 @@ export default function Dashboard() {
 
                 {/* Filters */}
                 <div className={styles.filtersSection}>
-                    <select
-                        value={selectedLine}
-                        onChange={(e) => setSelectedLine(e.target.value)}
-                        className={styles.formSelect}
-                    >
-                        {lineOptions.map(option => (
-                            <option key={option.id} value={option.id}>
-                                {option.label}
-                            </option>
-                        ))}
-                    </select>
-                    <input
-                        type="date"
-                        value={dateRange?.[0]?.format('YYYY-MM-DD') ?? ''}
-                        onChange={(e) => handleDateInputChange('start', e.target.value)}
-                        className={styles.formInput}
-                    />
-                    <input
-                        type="date"
-                        value={dateRange?.[1]?.format('YYYY-MM-DD') ?? ''}
-                        onChange={(e) => handleDateInputChange('end', e.target.value)}
-                        className={styles.formInput}
-                    />
-                    <div className={styles.quickRangeButtons}>
-                        <button type="button" onClick={() => handleQuickRangePreset('month')}>
-                            Tháng này
-                        </button>
-                        <button type="button" onClick={() => handleQuickRangePreset('year')}>
-                            Năm nay
-                        </button>
+                    <div className={styles.filtersRow}>
+                        <div className={styles.filterField}>
+                            <span className={styles.filterLabel}>Dây chuyền theo dõi</span>
+                            <select
+                                value={selectedLine}
+                                onChange={(e) => setSelectedLine(e.target.value)}
+                                className={styles.formSelect}
+                            >
+                                {resolvedLineOptions.map(option => (
+                                    <option key={option.id} value={option.id}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className={styles.filterField}>
+                            <span className={styles.filterLabel}>Khoảng thời gian</span>
+                            <div className={styles.quickRangeButtons}>
+                                <button
+                                    type="button"
+                                    className={`${styles.quickRangeButton} ${trendRange === '30d' ? styles.quickRangeButtonActive : ''}`}
+                                    onClick={() => handleQuickRangePreset('month')}
+                                >
+                                    Tháng này
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`${styles.quickRangeButton} ${trendRange === '12m' ? styles.quickRangeButtonActive : ''}`}
+                                    onClick={() => handleQuickRangePreset('year')}
+                                >
+                                    Năm nay
+                                </button>
+                            </div>
+                        </div>
+                        <div className={`${styles.filterField} ${styles.filterActions}`}>
+                            <span className={styles.filterLabel}>Chế độ so sánh</span>
+                            <Link href="/compare-dashboard" className={styles.compareButton}>
+                                So sánh xưởng
+                            </Link>
+                        </div>
                     </div>
-                    <Link href="/compare-dashboard" className={`${styles.btn} ${styles.btnPrimary}`}>
-                        So sánh
-                    </Link>
                 </div>
 
                 {analyticsError && !analyticsLoading && (
@@ -1399,25 +1491,21 @@ export default function Dashboard() {
                         kpiCards.map((card, index) => {
                             const accent = KPI_ACCENTS[index % KPI_ACCENTS.length];
                             return (
-                                <div className={styles.kpiCard} key={card.key}>
-                                    <div className={styles.kpiHeader}>
-                                        <span>{card.label}</span>
-                                        <div
-                                            className={styles.kpiIcon}
-                                            style={{ background: `${accent}1a`, color: accent }}
-                                            aria-hidden="true"
-                                        >
-                                            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
-                                                <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z" />
-                                            </svg>
+                                <div className={styles.metricCard} key={card.key}>
+                                    <h3>{card.label}</h3>
+                                    <div className={styles.metricValues}>
+                                        <div className={styles.metricValueBlock}>
+                                            <strong>{formatKpiValue(card.value, card.unit)}</strong>
                                         </div>
                                     </div>
-                                    <p className={styles.kpiValue}>{formatKpiValue(card.value, card.unit)}</p>
+                                    <span className={styles.metricDelta} style={{ color: '#94a3b8' }}>
+                                        Dữ liệu trong năm
+                                    </span>
                                 </div>
                             );
                         })
                     ) : (
-                        <div className={styles.emptyState}>Chưa có dữ liệu KPI</div>
+                        <div className={styles.emptyState} >Chưa có dữ liệu KPI</div>
                     )}
                 </div>
 
@@ -1441,7 +1529,20 @@ export default function Dashboard() {
                             {hasActivePlan ? 'Chỉnh sửa mục tiêu' : 'Thêm mục tiêu'}
                         </button>
                     </div>
-                    {hasActivePlan ? (
+                    {showTargetSkeleton ? (
+                        <div className={styles.targetSkeleton}>
+                            <div className={styles.skeletonStack}>
+                                <span className={`${styles.skeletonBlock} ${styles.skeletonLineMd}`} />
+                                <span className={`${styles.skeletonBlock} ${styles.skeletonLineSm}`} />
+                            </div>
+                            <div className={styles.targetSkeletonRow}>
+                                <span className={`${styles.skeletonBlock} ${styles.skeletonValueLg}`} />
+                                <span className={`${styles.skeletonBlock} ${styles.skeletonValueLg}`} />
+                                <span className={`${styles.skeletonBlock} ${styles.skeletonValueLg}`} />
+                            </div>
+                            <div className={`${styles.skeletonBlock} ${styles.skeletonChip}`} />
+                        </div>
+                    ) : hasActivePlan ? (
                         <>
                             <div className={styles.targetSummaryRow}>
                                 <div className={styles.targetSummaryValue}>
@@ -1476,8 +1577,15 @@ export default function Dashboard() {
                             <p>{targetStatusDescription}</p>
                         </div>
                     )}
-                    {workshopTargetLoading ? (
-                        <p className={styles.targetFootnote}>Đang tải mục tiêu...</p>
+                    {showTargetSkeleton ? (
+                        <div className={styles.targetListSkeleton}>
+                            {Array.from({ length: 3 }).map((_, index) => (
+                                <div key={`target-list-skeleton-${index}`} className={styles.targetListSkeletonItem}>
+                                    <span className={`${styles.skeletonBlock} ${styles.skeletonLineMd}`} />
+                                    <span className={`${styles.skeletonBlock} ${styles.skeletonLineSm}`} />
+                                </div>
+                            ))}
+                        </div>
                     ) : workshopTargetItems.length > 0 ? (
                         <>
                             <div className={styles.targetList}>
@@ -1641,7 +1749,7 @@ export default function Dashboard() {
                                                 {lineRangeLabel ? `Hiệu suất ${lineRangeLabel} theo dây chuyền` : 'Hiệu suất theo dây chuyền'}
                                             </h2>
                                         </div>
-                                        <div className={styles.rangeToggle} role="group" aria-label="Chọn khoảng thời gian hiệu suất">
+                                        {/* <div className={styles.rangeToggle} role="group" aria-label="Chọn khoảng thời gian hiệu suất">
                                             {normalizedDatePresets.map((preset) => (
                                                 <button
                                                     key={preset.key}
@@ -1653,7 +1761,7 @@ export default function Dashboard() {
                                                     {preset.label}
                                                 </button>
                                             ))}
-                                        </div>
+                                        </div> */}
                                     </div>
                                     <div className={`${styles.chartContainer} ${styles.chartMedium}`}>
                                         <Bar data={linePerformanceData} options={linePerformanceOptions} />

@@ -1,6 +1,5 @@
 .wrapper {
   min-height: 100vh;
-  background: #eef3fb;
   padding: 32px;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
@@ -49,6 +48,28 @@
   letter-spacing: 0.05em;
   color: #8ca0c0;
   font-weight: 600;
+}
+
+.dateRangeControls {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+
+.dateRangeItem {
+  flex: 0 0 auto;
+  min-width: 140px;
+  display: flex;
+}
+
+.dateRangeItemGrow {
+  flex: 1;
+  min-width: 0;
+}
+
+.dateRangeItem :global(.ant-select),
+.dateRangeItem :global(.ant-picker) {
+  width: 100%;
 }
 
 .trendModeToggle {
@@ -237,7 +258,7 @@
 
 .trendGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr));
   gap: 24px;
   margin-bottom: 32px;
 }
@@ -294,7 +315,7 @@
 }
 
 .chartContainer {
-  height: 260px;
+  height: clamp(170px, 32vw, 280px);
 }
 
 .compareRow {
@@ -314,12 +335,12 @@
 
 .summaryBar {
   width: 100%;
-  height: 220px;
+  height: clamp(160px, 30vw, 240px);
   margin-bottom: 24px;
 }
 
 .overlayCard .chartContainer {
-  height: 320px;
+  height: clamp(210px, 38vw, 340px);
 }
 
 .progressList {
@@ -345,6 +366,7 @@
   height: 10px;
   border-radius: 999px;
   background: #e2e8f0;
+  overflow-x: hidden;
 }
 
 .progressFill {
@@ -371,12 +393,118 @@
   opacity: 1;
 }
 
+@media (max-width: 1024px) {
+  .wrapper {
+    padding: 28px;
+  }
+  .trendGrid {
+    grid-template-columns: 1fr;
+  }
+  .compareRow {
+    grid-template-columns: 1fr;
+  }
+  .trendHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .trendLegend {
+    width: 100%;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 900px) {
+  .filtersRow {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+  .metricValues {
+    flex-direction: column;
+    gap: 10px;
+  }
+  .metricValueBlock strong {
+    font-size: 20px;
+  }
+  .trendModeToggle {
+    flex-wrap: wrap;
+  }
+}
+
 @media (max-width: 768px) {
   .wrapper {
     padding: 24px 16px;
   }
-  .compareRow {
+  .filtersCard {
+    padding: 20px;
+  }
+  .filtersRow {
     grid-template-columns: 1fr;
+    gap: 16px;
+  }
+  .dateRangeControls {
+    flex-direction: column;
+  }
+  .dateRangeItem,
+  .dateRangeItemGrow {
+    width: 100%;
+  }
+  .dateRangeItemGrow {
+    flex: unset;
+  }
+  .trendLegend {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .trendHeader {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  .metricCard {
+    padding: 16px;
+  }
+  .trendCard,
+  .overlayCard,
+  .summaryCard {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 540px) {
+  .pageTitle {
+    font-size: 22px;
+  }
+  .filtersCard {
+    border-radius: 16px;
+    padding: 16px;
+  }
+  .rangeButton {
+    flex: 1;
+    text-align: center;
+  }
+  .metricValues {
+    padding-top: 6px;
+  }
+  .metricValueBlock strong {
+    font-size: 18px;
+  }
+  .progressList {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 420px) {
+  .trendCard,
+  .overlayCard,
+  .summaryCard {
+    padding: 16px;
+  }
+  .trendGrid {
+    gap: 16px;
+  }
+  .compareRow {
+    gap: 16px;
   }
 }
 
