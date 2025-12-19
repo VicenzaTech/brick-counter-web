@@ -11,7 +11,17 @@ RUN npm install
 COPY . .
 RUN npm run build
 
+
+FROM node:22-alpine AS dev
+
+WORKDIR /app
+COPY package*.json ./
+
+RUN npm install
+
+CMD [ "npm" , "run", "dev"]
 # Production runner
+
 FROM node:22-alpine AS runner
 WORKDIR /app
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo, useEffect, useReducer, useRef } from 'react';
-import { Card, Select, Space, Typography, Table, Tag, Tooltip } from 'antd';
+import { useState, useMemo, useEffect, useReducer, useRef, useCallback, useDeferredValue } from 'react';
+import { Card, Select, Space, Typography, Table, Tag, Tooltip, Modal, Form, Input, InputNumber, message } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import { Line, Doughnut, Bar } from 'react-chartjs-2';
 import {
@@ -26,19 +26,11 @@ import { apiFetch } from '@/lib/http/http';
 import Link from 'next/link';
 import {
     DEFAULT_DATE_PRESETS,
-    DEFAULT_LINE_OPTIONS,
     DatePreset,
     DetailedProductionRecord,
-    KpiCardPayload,
-    LineOption,
-    MOCK_ANALYTICS_RECORDS,
     MOCK_DETAIL_TABLE_DATA,
-    MOCK_KPI_CARDS,
-    MOCK_LINE_OPTIONS,
     PRESET_LABEL_OVERRIDES,
-    ProductionRecord,
     RangePreset,
-    RunsAnalyticsResponse,
     STAGE_NAME_META,
     STOP_REASON_META,
     StageNameKey,
@@ -46,8 +38,61 @@ import {
     getActualOutput,
     getMockDetailRows,
 } from '@/lib/mock/dashboard-data';
+import { useProductionAnalyticsData } from '@/hooks/useProductionAnalyticsData';
+import { fetchWorkshops, WorkshopSummary } from '@/lib/services/workshops';
+import {
+    createWorkshopTarget,
+    fetchWorkshopTargets as fetchWorkshopTargetsService,
+    updateWorkshopTarget,
+    WorkshopSummaryOption,
+    WorkshopTargetChart,
+    WorkshopTargetItem,
+    WorkshopTargetPayload,
+} from '@/lib/services/workshop-targets';
+import type { ProductionAnalyticsParams } from '@/lib/services/production-analytics';
 
 const { Text } = Typography;
+const TREND_VIEW_OPTIONS = [
+    { key: 'actual', label: 'Sản lượng' },
+    { key: 'cumulative', label: 'Lũy tiến' },
+] as const;
+const OUTPUT_UNIT = 'm²';
+
+const formatCompactMetric = (value: number, decimals = 1) => {
+    if (!Number.isFinite(value)) {
+        return '--';
+    }
+    const absolute = Math.abs(value);
+    const normalize = (divisor: number, suffix: string) => {
+        const scaled = value / divisor;
+        return `${Number(scaled.toFixed(decimals))}${suffix}`;
+    };
+    if (absolute >= 1_000_000_000) {
+        return normalize(1_000_000_000, 'B');
+    }
+    if (absolute >= 1_000_000) {
+        return normalize(1_000_000, 'M');
+    }
+    if (absolute >= 1_000) {
+        return normalize(1_000, 'K');
+    }
+    return value.toLocaleString('vi-VN');
+};
+
+const formatProductionValue = (value: number, options?: { includeUnit?: boolean }) => {
+    const compact = formatCompactMetric(value);
+    if (compact === '--') {
+        return compact;
+    }
+    return options?.includeUnit === false ? compact : `${compact} ${OUTPUT_UNIT}`;
+};
+
+interface TargetSummary {
+    actual: number;
+    target: number;
+    progress: number;
+    remaining: number;
+}
 
 // ??ng k? c?c th?nh ph?n c?a Chart.js
 ChartJS.register(
@@ -202,18 +247,32 @@ const formatKpiValue = (value: number, unit?: string) => {
 // =================== COMPONENT CHÍNH ===================
 export default function Dashboard() {
     const useMockDashboardData = process.env.NEXT_PUBLIC_USE_MOCK_DASHBOARD !== 'false';
-    const [activeFactory, setActiveFactory] = useState<'1' | '2'>('1');
+    const [messageApi, contextHolder] = message.useMessage();
+    const [workshops, setWorkshops] = useState<WorkshopSummary[]>([]);
+    const [activeWorkshopId, setActiveWorkshopId] = useState<number | null>(null);
     const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
     const [selectedLine, setSelectedLine] = useState<string>('all');
     const [tableStageName, setTableStageName] = useState<'all' | StageNameKey>('all');
     const [trendRange, setTrendRange] = useState<RangePreset>('30d');
+    const [trendViewMode, setTrendViewMode] = useState<typeof TREND_VIEW_OPTIONS[number]['key']>('actual');
     const [lineRange, setLineRange] = useState<RangePreset>('30d');
-    const [lineOptions, setLineOptions] = useState<LineOption[]>(MOCK_LINE_OPTIONS);
-    const [kpiCards, setKpiCards] = useState<KpiCardPayload[]>(MOCK_KPI_CARDS);
-    const [analyticsRecords, setAnalyticsRecords] = useState<ProductionRecord[]>(MOCK_ANALYTICS_RECORDS);
-    const [analyticsLoading, setAnalyticsLoading] = useState(false);
-    const [analyticsError, setAnalyticsError] = useState<string | null>(null);
-    const [hasLoadedAnalytics, setHasLoadedAnalytics] = useState(true);
+    const [targetModalOpen, setTargetModalOpen] = useState(false);
+    const [targetSubmitting, setTargetSubmitting] = useState(false);
+    const [workshopTarget, setWorkshopTarget] = useState<WorkshopTargetItem | null>(null);
+    const [targetModalMode, setTargetModalMode] = useState<'create' | 'edit'>('create');
+    const [targetWorkshopOptions, setTargetWorkshopOptions] = useState<WorkshopSummaryOption[]>([]);
+    const [targetYearOptions, setTargetYearOptions] = useState<number[]>([]);
+    const [targetFormInitialValues, setTargetFormInitialValues] = useState<Partial<WorkshopTargetPayload> | null>(null);
+    const [targetFormDirty, setTargetFormDirty] = useState(false);
+    const [selectedTargetWorkshopId, setSelectedTargetWorkshopId] = useState<number | undefined>(undefined);
+    const [selectedTargetYear, setSelectedTargetYear] = useState<number | undefined>(dayjs().year());
+    const [includeTargetHistory, setIncludeTargetHistory] = useState(false);
+    const [workshopTargetItems, setWorkshopTargetItems] = useState<WorkshopTargetItem[]>([]);
+    const [workshopTargetChart, setWorkshopTargetChart] = useState<WorkshopTargetChart[]>([]);
+    const workshopTargetItemsRef = useRef<WorkshopTargetItem[]>([]);
+    const workshopTargetChartRef = useRef<WorkshopTargetChart[]>([]);
+    const [workshopTargetLoading, setWorkshopTargetLoading] = useState(false);
+    const [targetForm] = Form.useForm<WorkshopTargetPayload>();
     const [datePresets, setDatePresets] = useState<DatePreset[]>(DEFAULT_DATE_PRESETS.map(normalizePresetLabel));
     const [dateRangeSource, setDateRangeSource] = useState<'preset' | 'manual'>('preset');
     const [detailTableState, detailTableDispatch] = useReducer(
@@ -236,6 +295,24 @@ export default function Dashboard() {
         ],
         []
     );
+    const normalizedTargetYearOptions = useMemo(() => {
+        const currentYear = dayjs().year();
+        const allowedYears = [currentYear, currentYear + 1];
+        const allowedSet = new Set(allowedYears);
+        const intersection = targetYearOptions.filter(year => allowedSet.has(year));
+        const source = intersection.length ? intersection : allowedYears;
+        const uniqueYears = Array.from(new Set(source)).sort((a, b) => a - b);
+        return uniqueYears.map(year => ({
+            label: `Năm ${year}`,
+            value: year,
+        }));
+    }, [targetYearOptions]);
+    const activeWorkshopName = useMemo(() => {
+        if (activeWorkshopId == null) {
+            return workshops.length ? 'Chưa chọn phân xưởng' : 'Đang tải phân xưởng';
+        }
+        return workshops.find(workshop => workshop.id === activeWorkshopId)?.name ?? `Phân xưởng ${activeWorkshopId}`;
+    }, [activeWorkshopId, workshops]);
     const alertLevelClassMap: Record<AlertLevel, string> = {
         critical: styles.alertCritical,
         warning: styles.alertWarning,
@@ -247,6 +324,120 @@ export default function Dashboard() {
         }
         return [dateRange[0], dateRange[1]] as [Dayjs, Dayjs];
     }, [dateRange, dateRangeSource]);
+    const analyticsParams = useMemo<ProductionAnalyticsParams>(() => {
+        const params: ProductionAnalyticsParams = {
+            productionLine: selectedLine,
+            useMock: useMockDashboardData,
+        };
+        if (manualRange) {
+            params.from = manualRange[0].startOf('day').toISOString();
+            params.to = manualRange[1].endOf('day').toISOString();
+        } else {
+            params.range = trendRange;
+        }
+        return params;
+    }, [manualRange, selectedLine, trendRange, useMockDashboardData]);
+    const {
+        records: analyticsRecords,
+        kpiCards,
+        lineOptions,
+        filters: analyticsFilters,
+        loading: analyticsLoading,
+        error: analyticsError,
+        hasHydrated: hasLoadedAnalytics,
+    } = useProductionAnalyticsData(analyticsParams);
+    const deferredAnalyticsRecords = useDeferredValue(analyticsRecords);
+    const targetSummary = useMemo<TargetSummary | null>(() => {
+        const sourceRecords = deferredAnalyticsRecords;
+        const actual = sourceRecords.reduce((sum, record) => sum + getActualOutput(record), 0);
+        const computedTarget = sourceRecords.reduce((sum, record) => {
+            const base = record.originalOutput || getActualOutput(record);
+            return sum + Math.round(base * 0.95);
+        }, 0);
+        const planTarget =
+            typeof workshopTarget?.yearlyTarget === 'number' && workshopTarget.yearlyTarget > 0
+                ? workshopTarget.yearlyTarget
+                : computedTarget;
+        if (!planTarget) {
+            return null;
+        }
+        const progress = planTarget ? (actual / planTarget) * 100 : 0;
+        return {
+            actual,
+            target: planTarget,
+            progress,
+            remaining: Math.max(planTarget - actual, 0),
+        };
+    }, [deferredAnalyticsRecords, workshopTarget?.yearlyTarget]);
+    const targetVisualProgress = Math.min(100, Math.max(0, targetSummary?.progress ?? 0));
+    const targetActualLabel = targetSummary ? formatProductionValue(targetSummary.actual) : '--';
+    const targetPlannedLabel = targetSummary ? formatProductionValue(targetSummary.target) : '--';
+    const targetRemainingLabel = targetSummary ? formatProductionValue(targetSummary.remaining) : '--';
+    const targetActualShort = targetSummary ? formatProductionValue(targetSummary.actual, { includeUnit: false }) : '--';
+    const targetPlannedShort = targetSummary ? formatProductionValue(targetSummary.target, { includeUnit: false }) : '--';
+    const targetRemainingShort = targetSummary
+        ? formatProductionValue(targetSummary.remaining, { includeUnit: false })
+        : '--';
+    const targetProgressLabel = targetSummary ? `${targetSummary.progress.toFixed(1)}%` : '--';
+    const targetProgressValue = targetSummary ? Number(targetSummary.progress.toFixed(1)) : 0;
+    const hasActivePlan = Boolean(workshopTarget);
+    const getTargetStatus = useCallback(
+        (target?: WorkshopTargetItem | null, options?: { includeProgress?: boolean }) => {
+            const currentYear = dayjs().year();
+            if (!target) {
+                return 'Chưa có kế hoạch';
+            }
+            if (target.year > currentYear) {
+                return 'Chưa thực hiện';
+            }
+            if (target.year < currentYear) {
+                return 'Đã kết thúc';
+            }
+            if (options?.includeProgress && targetSummary?.progress && targetSummary.progress >= 100) {
+                return 'Đã hoàn thành';
+            }
+            return 'Đang thực hiện';
+        },
+        [targetSummary]
+    );
+    const targetPlanName = workshopTarget?.name ?? 'Chưa có kế hoạch';
+    const targetPlanYear = workshopTarget?.year ?? selectedTargetYear ?? dayjs().year();
+    const targetPlanStatus = getTargetStatus(workshopTarget, { includeProgress: true });
+    const targetWorkshopLabel =
+        workshopTarget?.workshopName ??
+        (selectedTargetWorkshopId ? `Phân xưởng ${selectedTargetWorkshopId}` : activeWorkshopName);
+    const targetStatusDescription = useMemo(() => {
+        if (!hasActivePlan) {
+            return `Phân xưởng này chưa có mục tiêu cho năm ${targetPlanYear}. Nhấn "Thêm mục tiêu" để bắt đầu.`;
+        }
+        switch (targetPlanStatus) {
+            case 'Chưa có kế hoạch':
+                return 'Chọn hoặc thiết lập kế hoạch để bắt đầu theo dõi mục tiêu.';
+            case 'Chưa thực hiện':
+                return 'Kế hoạch chưa tới thời gian triển khai. Theo dõi lại khi bước vào năm mục tiêu.';
+            case 'Đã kết thúc':
+                return 'Kế hoạch đã kết thúc. Xem lịch sử hoặc tạo kế hoạch mới cho giai đoạn tiếp theo.';
+            case 'Đã hoàn thành':
+                return 'Kế hoạch đã hoàn tất, hãy tiếp tục duy trì hiệu suất hoặc thiết lập mục tiêu mới.';
+            default:
+                return 'Theo dõi tiến độ để đảm bảo hoàn thành mục tiêu đúng hạn.';
+        }
+    }, [hasActivePlan, targetPlanStatus, targetPlanYear]);
+    const showProgressBar = hasActivePlan && Boolean(targetSummary);
+    const progressSummaryText = showProgressBar
+        ? `${targetActualShort} / ${targetPlannedShort} ${OUTPUT_UNIT}`
+        : 'Đang cập nhật';
+    const getTargetStatusChipClass = (status: string) => {
+        switch (status) {
+            case 'Đã hoàn thành':
+            case 'Đã kết thúc':
+                return `${styles.targetStatusChip} ${styles.targetStatusChipSuccess}`;
+            case 'Đang thực hiện':
+                return `${styles.targetStatusChip} ${styles.targetStatusChipInfo}`;
+            default:
+                return `${styles.targetStatusChip} ${styles.targetStatusChipNeutral}`;
+        }
+    };
     const selectedLineOption = useMemo(
         () => lineOptions.find(option => option.id === selectedLine),
         [lineOptions, selectedLine]
@@ -257,12 +448,6 @@ export default function Dashboard() {
         }
         return selectedLineOption?.label ?? null;
     }, [selectedLine, selectedLineOption]);
-    const applyMockAnalyticsData = () => {
-        setAnalyticsRecords(MOCK_ANALYTICS_RECORDS);
-        setKpiCards(MOCK_KPI_CARDS);
-        setHasLoadedAnalytics(true);
-        setLineOptions(MOCK_LINE_OPTIONS);
-    };
     useEffect(() => {
         if (!lineOptions.length) {
             return;
@@ -280,113 +465,137 @@ export default function Dashboard() {
             },
         });
     };
+    const handleTargetFormValuesChange = useCallback(
+        (_: Partial<WorkshopTargetPayload>, allValues: Partial<WorkshopTargetPayload>) => {
+            if (targetModalMode !== 'edit') {
+                setTargetFormDirty(true);
+                return;
+            }
+            if (!targetFormInitialValues) {
+                setTargetFormDirty(false);
+                return;
+            }
+            const watchedFields: (keyof WorkshopTargetPayload)[] = ['name', 'workshopId', 'year', 'yearlyTarget', 'description'];
+            const hasChanges = watchedFields.some(key => {
+                const nextValue = allValues?.[key];
+                const initialValue = targetFormInitialValues?.[key];
+                return (nextValue ?? '') !== (initialValue ?? '');
+            });
+            setTargetFormDirty(hasChanges);
+        },
+        [targetModalMode, targetFormInitialValues]
+    );
 
     useEffect(() => {
-        if (useMockDashboardData) {
-            applyMockAnalyticsData();
-            setAnalyticsLoading(false);
-            setAnalyticsError(null);
+        let cancelled = false;
+        const loadWorkshops = async () => {
+            const result = await fetchWorkshops();
+            if (cancelled) {
+                return;
+            }
+            setWorkshops(result);
+            setActiveWorkshopId(prev => prev ?? (result[0]?.id ?? null));
+            setSelectedTargetWorkshopId(prev => prev ?? result[0]?.id);
+        };
+        loadWorkshops();
+        return () => {
+            cancelled = true;
+        };
+    }, []);
+
+    useEffect(() => {
+        if (!analyticsFilters) {
             return;
         }
-
-        const controller = new AbortController();
-
-        const fetchAnalytics = async () => {
-            setAnalyticsLoading(true);
-            setAnalyticsError(null);
-            try {
-                const params = new URLSearchParams();
-                params.set('productionLine', selectedLine);
-                if (manualRange) {
-                    params.set('from', manualRange[0].startOf('day').toISOString());
-                    params.set('to', manualRange[1].endOf('day').toISOString());
-                } else {
-                    params.set('range', trendRange);
-                }
-
-                const response = await apiFetch(`/runs-analytics?${params.toString()}`, { signal: controller.signal });
-                if (!response.ok) {
-                    throw new Error('Không thể tải dữ liệu phân tích');
-                }
-                const payload: RunsAnalyticsResponse = await response.json();
-                if (controller.signal.aborted) {
-                    return;
-                }
-
-                const hasRecords = Boolean(payload.records?.length);
-                const hasKpiCards = Boolean(payload.kpiCards?.length);
-                const resolvedRecords = hasRecords ? payload.records! : MOCK_ANALYTICS_RECORDS;
-                const resolvedKpiCards = hasKpiCards ? payload.kpiCards! : MOCK_KPI_CARDS;
-
-                setAnalyticsRecords(resolvedRecords);
-                setKpiCards(resolvedKpiCards);
-                setHasLoadedAnalytics(true);
-
-                if (!hasRecords || !hasKpiCards) {
-                    setLineOptions(MOCK_LINE_OPTIONS);
-                }
-
-                if (payload.filters?.productionLine?.options?.length) {
-                    const incoming = payload.filters.productionLine.options;
-                    const hasAll = incoming.some(option => option.id === 'all');
-                    const normalizedOptions = hasAll
-                        ? [
-                            DEFAULT_LINE_OPTIONS[0],
-                            ...incoming.filter(option => option.id !== 'all'),
-                        ]
-                        : [...DEFAULT_LINE_OPTIONS, ...incoming];
-                    setLineOptions(normalizedOptions);
-                }
-
-                const selectedLineFromApi = payload.filters?.productionLine?.selected;
-                if (!hasSyncedInitialFilters.current && selectedLineFromApi && selectedLineFromApi !== selectedLine) {
-                    setSelectedLine(selectedLineFromApi);
-                }
-
-                if (payload.filters?.dateRange?.presets?.length) {
-                    setDatePresets(payload.filters.dateRange.presets.map(normalizePresetLabel));
-                }
-
-                const incomingPreset = payload.filters?.dateRange?.selectedPreset;
-                if (incomingPreset && dateRangeSource !== 'manual' && incomingPreset !== trendRange) {
-                    setTrendRange(incomingPreset);
-                    setLineRange(prev => (prev === trendRange ? incomingPreset : prev));
-                }
-
-                if (payload.filters?.dateRange?.from && payload.filters?.dateRange?.to && dateRangeSource !== 'manual') {
-                    setDateRange([dayjs(payload.filters.dateRange.from), dayjs(payload.filters.dateRange.to)]);
-                }
-
-                if (!hasSyncedInitialFilters.current) {
-                    hasSyncedInitialFilters.current = true;
-                }
-            } catch (error) {
-                if (controller.signal.aborted) {
-                    return;
-                }
-                console.warn('Không thể tải được dữ liệu phân tích, sử dụng dữ liệu mô phỏng.', error);
-                applyMockAnalyticsData();
-                setAnalyticsError(null);
-            } finally {
-                if (!controller.signal.aborted) {
-                    setAnalyticsLoading(false);
-                }
-            }
-        };
-
-        fetchAnalytics();
-
-        return () => controller.abort();
-    }, [selectedLine, trendRange, dateRangeSource, manualRange, useMockDashboardData]);
-
-    const handlePresetRangeChange = (presetKey: RangePreset) => {
-        setDateRangeSource('preset');
-        setTrendRange(presetKey);
-        setDateRange(null);
-    };
-
+        const filters = analyticsFilters;
+        const selectedLineFromApi = filters.productionLine?.selected;
+        if (!hasSyncedInitialFilters.current && selectedLineFromApi && selectedLineFromApi !== selectedLine) {
+            setSelectedLine(selectedLineFromApi);
+        }
+        if (filters.dateRange?.presets?.length) {
+            setDatePresets(filters.dateRange.presets.map(normalizePresetLabel));
+        }
+        const incomingPreset = filters.dateRange?.selectedPreset;
+        if (incomingPreset && dateRangeSource !== 'manual' && incomingPreset !== trendRange) {
+            setTrendRange(incomingPreset);
+            setLineRange(prev => (prev === trendRange ? incomingPreset : prev));
+        }
+        if (filters.dateRange?.from && filters.dateRange?.to && dateRangeSource !== 'manual') {
+            setDateRange([dayjs(filters.dateRange.from), dayjs(filters.dateRange.to)]);
+        }
+        if (!hasSyncedInitialFilters.current) {
+            hasSyncedInitialFilters.current = true;
+        }
+    }, [analyticsFilters, dateRangeSource, trendRange, selectedLine]);
     const handleLineRangeChange = (presetKey: RangePreset) => {
         setLineRange(presetKey);
+    };
+
+    const handleQuickRangePreset = (preset: 'month' | 'year') => {
+        const now = dayjs();
+        const start = preset === 'month' ? now.startOf('month') : now.startOf('year');
+        const end = preset === 'month' ? now.endOf('month') : now.endOf('year');
+        setDateRange([start, end]);
+        setDateRangeSource('manual');
+        setTrendRange(preset === 'month' ? '30d' : '12m');
+    };
+
+    const handleOpenTargetModal = () => {
+        const isEditing = Boolean(workshopTarget?.id);
+        const nextMode: 'create' | 'edit' = isEditing ? 'edit' : 'create';
+        setTargetModalMode(nextMode);
+        const fallbackWorkshopId =
+            workshopTarget?.workshopId ??
+            selectedTargetWorkshopId ??
+            activeWorkshopId ??
+            workshops[0]?.id;
+        const availableYears = normalizedTargetYearOptions.map(option => option.value);
+        const desiredYear = workshopTarget?.year ?? selectedTargetYear ?? dayjs().year();
+        const fallbackYear = availableYears.includes(desiredYear)
+            ? desiredYear
+            : availableYears[0] ?? dayjs().year();
+        const nextValues: Partial<WorkshopTargetPayload> = {
+            name: isEditing && workshopTarget?.name ? workshopTarget.name : `Kế hoạch ${fallbackYear}`,
+            workshopId: fallbackWorkshopId,
+            year: fallbackYear,
+            yearlyTarget: workshopTarget?.yearlyTarget ?? Math.round(targetSummary?.target ?? 0),
+            description: workshopTarget?.description ?? '',
+        };
+        targetForm.setFieldsValue(nextValues);
+        setTargetFormInitialValues(nextValues);
+        setTargetFormDirty(false);
+        setTargetModalOpen(true);
+    };
+
+    const handleCloseTargetModal = () => {
+        setTargetModalOpen(false);
+        targetForm.resetFields();
+        setTargetFormInitialValues(null);
+        setTargetFormDirty(false);
+    };
+
+    const handleSubmitTargetModal = async () => {
+        try {
+            const values = await targetForm.validateFields();
+            setTargetSubmitting(true);
+            const isEditing = targetModalMode === 'edit' && Boolean(workshopTarget?.id);
+            if (isEditing && workshopTarget?.id) {
+                await updateWorkshopTarget(workshopTarget.id, values);
+            } else {
+                await createWorkshopTarget(values);
+            }
+            setTargetModalOpen(false);
+            targetForm.resetFields();
+            setTargetFormInitialValues(null);
+            setTargetFormDirty(false);
+            messageApi.success(isEditing ? 'Đã cập nhật mục tiêu nhà máy' : 'Đã tạo mục tiêu nhà máy');
+            await loadWorkshopTargets({ force: true });
+        } catch (error) {
+            const messageText = error instanceof Error ? error.message : 'Có lỗi xảy ra';
+            messageApi.error(messageText);
+        } finally {
+            setTargetSubmitting(false);
+        }
     };
 
     const handleDateInputChange = (type: 'start' | 'end', value: string) => {
@@ -433,7 +642,7 @@ export default function Dashboard() {
 
     // Lọc dữ liệu
     const data = useMemo(() => {
-        let filtered = [...analyticsRecords];
+        let filtered = [...deferredAnalyticsRecords];
 
         if (selectedLine !== 'all') {
             const lineName = selectedLineOption?.label;
@@ -449,7 +658,7 @@ export default function Dashboard() {
         }
 
         return filtered;
-    }, [analyticsRecords, dateRange, selectedLine, selectedLineOption]);
+    }, [deferredAnalyticsRecords, dateRange, selectedLine, selectedLineOption]);
 
     const availableLineLabels = useMemo(() => {
         const optionLabels = lineOptions
@@ -460,23 +669,52 @@ export default function Dashboard() {
             return optionLabels;
         }
 
-        return Array.from(new Set(analyticsRecords.map(record => record.lineName)));
-    }, [analyticsRecords, lineOptions]);
+        return Array.from(new Set(deferredAnalyticsRecords.map(record => record.lineName)));
+    }, [deferredAnalyticsRecords, lineOptions]);
 
     const normalizedDatePresets = useMemo(() => {
         const base = datePresets.length ? datePresets : DEFAULT_DATE_PRESETS;
         return base.map(normalizePresetLabel);
     }, [datePresets]);
     const trendRangeLabel = normalizedDatePresets.find(preset => preset.key === trendRange)?.label ?? '';
+    const manualRangeLabel = manualRange ? `${manualRange[0].format('DD/MM/YYYY')} - ${manualRange[1].format('DD/MM/YYYY')}` : '';
+    const showMonthlyTrendSeries = useMemo(() => {
+        if (manualRange) {
+            return manualRange[1].diff(manualRange[0], 'day') > 31;
+        }
+        return trendRange === '12m';
+    }, [manualRange, trendRange]);
+    const timeUnitLabel = showMonthlyTrendSeries ? 'theo tháng' : 'theo ngày';
+    const trendModeLabel = trendViewMode === 'actual' ? 'sản lượng' : 'lũy tiến';
+    const trendTitle = manualRangeLabel
+        ? `Xu hướng ${trendModeLabel} (${manualRangeLabel}, ${timeUnitLabel})`
+        : trendRangeLabel
+            ? `Xu hướng ${trendModeLabel} ${trendRangeLabel} ${timeUnitLabel}`
+            : `Xu hướng ${trendModeLabel} ${timeUnitLabel}`;
     const lineRangeLabel = normalizedDatePresets.find(preset => preset.key === lineRange)?.label ?? '';
     const skeletonRangeCount = Math.max(normalizedDatePresets.length, 2);
     const showSkeletons = analyticsLoading && !hasLoadedAnalytics;
 
+    const filteredTrendRecords = useMemo(() => {
+        const sourceRecords = deferredAnalyticsRecords;
+        if (!manualRange) {
+            return sourceRecords;
+        }
+        const [start, end] = manualRange;
+        const startValue = start.startOf('day').valueOf();
+        const endValue = end.endOf('day').valueOf();
+        return sourceRecords.filter(record => {
+            const recordTime = dayjs(record.date).valueOf();
+            return recordTime >= startValue && recordTime <= endValue;
+        });
+    }, [deferredAnalyticsRecords, manualRange]);
+
     const trendSeries = useMemo(() => {
+        const trendRecords = filteredTrendRecords;
         const dailyMap: Record<string, { actual: number; target: number }> = {};
         const monthlyMap: Record<string, { actual: number; target: number }> = {};
-        
-        data.forEach(record => {
+
+        trendRecords.forEach(record => {
             const actual = getActualOutput(record);
             const baseTarget = record.originalOutput || actual;
             const target = Math.round(baseTarget * 0.95);
@@ -513,20 +751,56 @@ export default function Dashboard() {
                 target: recentMonthlyKeys.map(key => monthlyMap[key]?.target ?? 0),
             },
         };
-    }, [data]);
+    }, [filteredTrendRecords]);
 
     const productionTrend = useMemo(() => {
-        const selectedSeries = trendRange === '30d' ? trendSeries.daily : trendSeries.monthly;
-        const hasSinglePoint = selectedSeries.labels.length <= 1;
+        const selectedSeries = showMonthlyTrendSeries ? trendSeries.monthly : trendSeries.daily;
+        const yearTargetValue =
+            typeof workshopTarget?.yearlyTarget === 'number' && Number.isFinite(workshopTarget.yearlyTarget)
+                ? workshopTarget.yearlyTarget
+                : null;
+        const labels = selectedSeries.labels;
+        let actualSeries = [...selectedSeries.actual];
+        let targetSeries = [...selectedSeries.target];
+        let actualLabel = showMonthlyTrendSeries ? 'Sản lượng theo tháng' : 'Sản lượng theo ngày';
+        let targetLabel = showMonthlyTrendSeries ? 'Mục tiêu theo tháng' : 'Mục tiêu theo ngày';
+
+        if (trendViewMode === 'cumulative') {
+            const cumulativeActual: number[] = [];
+            actualSeries.reduce((sum, value, index) => {
+                const next = sum + value;
+                cumulativeActual[index] = next;
+                return next;
+            }, 0);
+            actualSeries = cumulativeActual;
+            if (yearTargetValue !== null && labels.length) {
+                targetSeries = labels.map(() => yearTargetValue);
+                targetLabel = 'Mục tiêu năm';
+            } else {
+                const cumulativeTarget: number[] = [];
+                targetSeries.reduce((sum, value, index) => {
+                    const next = sum + value;
+                    cumulativeTarget[index] = next;
+                    return next;
+                }, 0);
+                targetSeries = cumulativeTarget;
+                targetLabel = 'Mục tiêu lũy tiến';
+            }
+            actualLabel = 'Sản lượng lũy tiến';
+        }
+
+        const hasSinglePoint = labels.length <= 1;
 
         return {
             hasSinglePoint,
+            actualLabel,
+            targetLabel,
             data: {
-                labels: selectedSeries.labels,
+                labels,
                 datasets: [
                     {
-                        label: 'Sản lượng thực tế',
-                        data: selectedSeries.actual,
+                        label: actualLabel,
+                        data: actualSeries,
                         borderColor: '#1d4ed8',
                         borderWidth: 3,
                         fill: hasSinglePoint ? false : true,
@@ -546,8 +820,8 @@ export default function Dashboard() {
                         },
                     },
                     {
-                        label: 'Trung bình sản lượng',
-                        data: selectedSeries.target,
+                        label: targetLabel,
+                        data: targetSeries,
                         borderColor: '#0ea5e9',
                         borderWidth: 2,
                         borderDash: [8, 6],
@@ -558,7 +832,7 @@ export default function Dashboard() {
                 ],
             },
         };
-    }, [trendRange, trendSeries]);
+    }, [trendSeries, trendViewMode, showMonthlyTrendSeries, workshopTarget?.yearlyTarget]);
 
     const qualitySummary = useMemo(() => {
         const totals = data.reduce(
@@ -735,7 +1009,7 @@ export default function Dashboard() {
         }),
         []
     );
-    
+
     const renderAlertIcon = (level: AlertLevel) => {
         switch (level) {
             case 'critical':
@@ -968,22 +1242,99 @@ export default function Dashboard() {
         return () => {
             controller.abort();
         };
-    }, [selectedLine, dateRange, tableStageName, activeFactory, mockSelectedLineLabel, useMockDashboardData]);
+    }, [selectedLine, dateRange, tableStageName, activeWorkshopId, mockSelectedLineLabel, useMockDashboardData]);
+
+    const loadWorkshopTargets = useCallback(
+        async (options?: { force?: boolean }) => {
+            setWorkshopTargetLoading(true);
+            try {
+                const workshopFilter = selectedTargetWorkshopId ?? activeWorkshopId ?? undefined;
+                const payload = await fetchWorkshopTargetsService(
+                    {
+                        workshopId: workshopFilter,
+                        year: selectedTargetYear,
+                        includeHistory: includeTargetHistory,
+                    },
+                    { force: options?.force }
+                );
+                const filters = payload.filters ?? {};
+                if (filters.workshops?.length) {
+                    setTargetWorkshopOptions(filters.workshops);
+                }
+                if (filters.years?.length) {
+                    setTargetYearOptions(filters.years);
+                }
+                if (typeof filters.includeHistory === 'boolean' && filters.includeHistory !== includeTargetHistory) {
+                    setIncludeTargetHistory(filters.includeHistory);
+                }
+                if (filters.selectedWorkshopId && filters.selectedWorkshopId !== selectedTargetWorkshopId) {
+                    setSelectedTargetWorkshopId(filters.selectedWorkshopId);
+                } else if (!selectedTargetWorkshopId && workshopFilter) {
+                    setSelectedTargetWorkshopId(workshopFilter);
+                }
+                if (filters.selectedYear && filters.selectedYear !== selectedTargetYear) {
+                    setSelectedTargetYear(filters.selectedYear);
+                }
+                const items = payload.items?.length ? payload.items : workshopTargetItemsRef.current;
+                setWorkshopTargetItems(items);
+                workshopTargetItemsRef.current = items;
+                const chart = payload.chart?.length ? payload.chart : workshopTargetChartRef.current;
+                setWorkshopTargetChart(chart);
+                workshopTargetChartRef.current = chart;
+                if (items?.length) {
+                    setWorkshopTarget(
+                        items.find(
+                            item =>
+                                item.workshopId === (filters.selectedWorkshopId ?? workshopFilter) &&
+                                item.year === (filters.selectedYear ?? selectedTargetYear)
+                        ) ?? items[0]
+                    );
+                } else {
+                    setWorkshopTarget(null);
+                }
+            } catch (error) {
+                console.error('Không thể tải dữ liệu mục tiêu nhà máy', error);
+            } finally {
+                setWorkshopTargetLoading(false);
+            }
+        },
+        [selectedTargetWorkshopId, selectedTargetYear, includeTargetHistory, activeWorkshopId]
+    );
+
+    useEffect(() => {
+        loadWorkshopTargets();
+    }, [loadWorkshopTargets]);
     // --- Render giao diện ---
     return (
         // Sử dụng styles từ CSS Module
         <div className={styles.dashboardWrapper}>
             <main className={styles.mainContent}>
+                {contextHolder}
                 {/* Header */}
                 <header className={styles.dashboardHeader}>
                     <div>
-                        <p className={styles.breadcrumb}>Trang chủ / Nhà máy {activeFactory === '1' ? '1' : '2'}</p>
-                        <h1>Dashboard Quản Lý Sản Xuất</h1>
+                        <p className={styles.breadcrumb}>Trang chủ / {activeWorkshopName}</p>
+                        <h1>Dashboard Quản lý sản xuất</h1>
                     </div>
                     <div className={styles.headerActions}>
-                        <select value={activeFactory} onChange={(e) => setActiveFactory(e.target.value as '1' | '2')} className={styles.formSelect}>
-                            <option value="1">Nhà máy 1</option>
-                            <option value="2">Nhà máy 2</option>
+                        <select
+                            value={activeWorkshopId ?? ''}
+                            onChange={(event) => {
+                                const value = event.target.value ? Number(event.target.value) : null;
+                                setActiveWorkshopId(value);
+                                setSelectedTargetWorkshopId(value ?? undefined);
+                            }}
+                            className={styles.formSelect}
+                            disabled={!workshops.length}
+                        >
+                            <option value="" disabled>
+                                {workshops.length ? 'Chọn phân xưởng' : 'Đang tải...'}
+                            </option>
+                            {workshops.map(workshop => (
+                                <option key={workshop.id} value={workshop.id}>
+                                    {workshop.name}
+                                </option>
+                            ))}
                         </select>
                     </div>
                 </header>
@@ -1013,13 +1364,17 @@ export default function Dashboard() {
                         onChange={(e) => handleDateInputChange('end', e.target.value)}
                         className={styles.formInput}
                     />
-                    <button
-                        className={`${styles.btn} ${styles.btnPrimary}`}
-                        onClick={handleResetFilters}
-                        type="button"
-                    >
-                        Xóa lọc
-                    </button>
+                    <div className={styles.quickRangeButtons}>
+                        <button type="button" onClick={() => handleQuickRangePreset('month')}>
+                            Tháng này
+                        </button>
+                        <button type="button" onClick={() => handleQuickRangePreset('year')}>
+                            Năm nay
+                        </button>
+                    </div>
+                    <Link href="/compare-dashboard" className={`${styles.btn} ${styles.btnPrimary}`}>
+                        So sánh
+                    </Link>
                 </div>
 
                 {analyticsError && !analyticsLoading && (
@@ -1063,6 +1418,128 @@ export default function Dashboard() {
                         })
                     ) : (
                         <div className={styles.emptyState}>Chưa có dữ liệu KPI</div>
+                    )}
+                </div>
+
+                {/* Target progress */}
+                <div className={styles.targetCard}>
+                    <div className={styles.targetCardHeader}>
+                        <div className={styles.targetPlanMeta}>
+                            <span className={styles.cardSubtitle}>
+                                {hasActivePlan ? `Mục tiêu năm ${targetPlanYear}` : 'Chưa có mục tiêu'}
+                            </span>
+                            <div className={styles.targetPlanTitle}>
+                                <strong>{hasActivePlan ? targetPlanName : 'Thiết lập mục tiêu sản lượng'}</strong>
+                                {hasActivePlan && (
+                                    <span className={getTargetStatusChipClass(targetPlanStatus)}>{targetPlanStatus}</span>
+                                )}
+                            </div>
+                            <span className={styles.targetPlanSubline}>{targetWorkshopLabel}</span>
+                            <p className={styles.targetPlanNote}>{targetStatusDescription}</p>
+                        </div>
+                        <button type="button" className={styles.targetCardButton} onClick={handleOpenTargetModal}>
+                            {hasActivePlan ? 'Chỉnh sửa mục tiêu' : 'Thêm mục tiêu'}
+                        </button>
+                    </div>
+                    {hasActivePlan ? (
+                        <>
+                            <div className={styles.targetSummaryRow}>
+                                <div className={styles.targetSummaryValue}>
+                                    <span className={styles.targetSummaryLabel}>Tiến độ hiện tại</span>
+                                    <strong>{targetSummary ? targetProgressLabel : '--'}</strong>
+                                    <span className={styles.targetSummaryHint}>{progressSummaryText}</span>
+                                </div>
+                                <div className={styles.targetSummaryMeta}>
+                                    <span>Năm mục tiêu</span>
+                                    <strong>{targetPlanYear}</strong>
+                                    {targetSummary && <small>Còn thiếu {targetRemainingLabel}</small>}
+                                </div>
+                            </div>
+                            {showProgressBar ? (
+                                <>
+                                    <div
+                                        className={styles.targetProgressBar}
+                                        role="progressbar"
+                                        aria-valuemin={0}
+                                        aria-valuenow={targetProgressValue}
+                                        aria-valuemax={100}
+                                    >
+                                        <span className={styles.targetProgressFill} style={{ width: `${targetVisualProgress}%` }} aria-hidden="true" />
+                                    </div>
+                                </>
+                            ) : (
+                                <p className={styles.targetPlanNote}>Chưa có dữ liệu để hiển thị tiến độ.</p>
+                            )}
+                        </>
+                    ) : (
+                        <div className={styles.targetEmpty}>
+                            <p>{targetStatusDescription}</p>
+                        </div>
+                    )}
+                    {workshopTargetLoading ? (
+                        <p className={styles.targetFootnote}>Đang tải mục tiêu...</p>
+                    ) : workshopTargetItems.length > 0 ? (
+                        <>
+                            <div className={styles.targetList}>
+                                {workshopTargetItems.map(item => {
+                                    const isActive = item.workshopId === selectedTargetWorkshopId && item.year === selectedTargetYear;
+                                    const hasMatchingId =
+                                        typeof workshopTarget?.id !== 'undefined' &&
+                                        typeof item.id !== 'undefined' &&
+                                        item.id === workshopTarget.id;
+                                    const matchesFallbackKey =
+                                        typeof workshopTarget?.id === 'undefined' &&
+                                        workshopTarget?.workshopId === item.workshopId &&
+                                        workshopTarget?.year === item.year;
+                                    const isSameTarget = hasMatchingId || matchesFallbackKey;
+                                    const status = getTargetStatus(item, { includeProgress: Boolean(isSameTarget) });
+                                    return (
+                                        <button
+                                            type="button"
+                                            key={item.id ?? `${item.workshopId}-${item.year}`}
+                                            className={`${styles.targetListItem} ${isActive ? styles.targetListItemActive : ''}`}
+                                            onClick={() => {
+                                                setSelectedTargetWorkshopId(item.workshopId);
+                                                setSelectedTargetYear(item.year);
+                                                setWorkshopTarget(item);
+                                            }}
+                                        >
+                                            <div className={styles.targetListInfo}>
+                                                <strong>{item.name}</strong>
+                                                <span>{item.workshopName ?? `Phân xưởng ${item.workshopId}`}</span>
+                                                <small>Năm {item.year}</small>
+                                            </div>
+                                            <div className={styles.targetListValue}>
+                                                <span>{formatProductionValue(item.yearlyTarget)}</span>
+                                                <span className={getTargetStatusChipClass(status)}>{status}</span>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            {includeTargetHistory && workshopTargetChart.length > 0 && (
+                                <div className={styles.targetHistory}>
+                                    {workshopTargetChart.map(chartGroup => (
+                                        <div key={chartGroup.workshopId}>
+                                            <p>
+                                                <strong>{chartGroup.workshopName}</strong> — Tổng mục tiêu:{' '}
+                                                {formatProductionValue(chartGroup.totalTarget)}
+                                            </p>
+                                            <ul>
+                                                {chartGroup.points.map(point => (
+                                                    <li key={`${chartGroup.workshopId}-${point.year}`}>
+                                                        <span>{point.year}</span>
+                                                        <span>{formatProductionValue(point.target)}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <p className={styles.targetFootnote}>Chưa có dữ liệu mục tiêu.</p>
                     )}
                 </div>
 
@@ -1124,31 +1601,29 @@ export default function Dashboard() {
                                     <div className={styles.cardHeader}>
                                         <div>
                                             <p className={styles.cardSubtitle}>So sánh sản lượng thực tế với mục tiêu</p>
-                                            <h2 className={styles.cardTitle}>
-                                                {trendRangeLabel ? `Xu hướng sản xuất ${trendRangeLabel}` : 'Xu hướng sản xuất'}
-                                            </h2>
+                                            <h2 className={styles.cardTitle}>{trendTitle}</h2>
                                         </div>
                                         <div className={styles.trendLegend}>
                                             <span>
                                                 <span className={styles.legendDot} style={{ backgroundColor: '#1d4ed8' }} />
-                                                Thực tế
+                                                {productionTrend.actualLabel}
                                             </span>
                                             <span>
                                                 <span className={styles.legendDash} style={{ borderColor: '#0ea5e9' }} />
-                                                Trung bình
+                                                {productionTrend.targetLabel}
                                             </span>
                                         </div>
                                         <div className={styles.cardHeaderControls}>
-                                            <div className={styles.rangeToggle} role="group" aria-label="Chọn khoảng thời gian xu hướng">
-                                                {normalizedDatePresets.map((preset) => (
+                                            <div className={styles.trendModeToggle} role="group" aria-label="Chế độ hiển thị sản lượng">
+                                                {TREND_VIEW_OPTIONS.map(option => (
                                                     <button
-                                                        key={preset.key}
+                                                        key={option.key}
                                                         type="button"
-                                                        aria-pressed={trendRange === preset.key}
-                                                        onClick={() => handlePresetRangeChange(preset.key)}
-                                                        className={`${styles.rangeButton} ${trendRange === preset.key ? styles.rangeButtonActive : ''}`}
+                                                        aria-pressed={trendViewMode === option.key}
+                                                        onClick={() => setTrendViewMode(option.key)}
+                                                        className={`${styles.rangeButton} ${trendViewMode === option.key ? styles.rangeButtonActive : ''}`}
                                                     >
-                                                        {preset.label}
+                                                        {option.label}
                                                     </button>
                                                 ))}
                                             </div>
@@ -1247,7 +1722,7 @@ export default function Dashboard() {
                             <div className={styles.alertHeader}>
                                 <div>
                                     <p className={styles.cardSubtitle}>Giám sát thời gian thực</p>
-                                    <h2 className={styles.cardTitle}>Cảnh báo hệ thống</h2>
+                                    <h2 className={styles.cardTitle}>Báo cáo hệ thống</h2>
                                 </div>
                                 <span className={styles.alertBadge}>{SYSTEM_ALERTS.length} mới</span>
                             </div>
@@ -1310,6 +1785,70 @@ export default function Dashboard() {
                         size="middle"
                     />
                 </Card>
+                <Modal
+                    title={targetModalMode === 'edit' ? 'Chỉnh sửa mục tiêu nhà máy' : 'Thêm mục tiêu nhà máy'}
+                    open={targetModalOpen}
+                    onCancel={handleCloseTargetModal}
+                    onOk={handleSubmitTargetModal}
+                    okText={targetModalMode === 'edit' ? 'Lưu thay đổi' : 'Thêm mục tiêu'}
+                    cancelText="Hủy"
+                    confirmLoading={targetSubmitting}
+                    destroyOnHidden={false}
+                    okButtonProps={{ disabled: targetModalMode === 'edit' && !targetFormDirty }}
+                >
+                    <Form layout="vertical" form={targetForm} onValuesChange={handleTargetFormValuesChange}>
+                        <Form.Item
+                            name="name"
+                            label="Tên kế hoạch"
+                            rules={[{ required: true, message: 'Nh?p tên kế hoạch' }]}
+                        >
+                            <Input placeholder="K? ho?ch n?m..." />
+                        </Form.Item>
+                        <Form.Item
+                            name="workshopId"
+                            label="Phân xưởng"
+                            rules={[{ required: true, message: 'Chọn phân xưởng' }]}
+                        >
+                            <Select
+                                placeholder="Chọn phân xưởng"
+                                options={workshops.map(workshop => ({
+                                    label: workshop.name,
+                                    value: workshop.id,
+                                }))}
+                                loading={!workshops.length}
+                                disabled={!workshops.length}
+                                showSearch
+                                optionFilterProp="label"
+                            />
+                        </Form.Item>
+                        <Form.Item
+                            name="year"
+                            label="Năm kế hoạch"
+                            rules={[{ required: true, message: 'Chọn năm kế hoạch' }]}
+                        >
+                            <Select
+                                placeholder="Chọn năm kế hoạch"
+                                options={normalizedTargetYearOptions}
+                                disabled={!normalizedTargetYearOptions.length}
+                            />
+                        </Form.Item>
+                        <Form.Item
+                            name="yearlyTarget"
+                            label="Mục tiêu (m²)"
+                            rules={[{ required: true, message: 'Nhập mục tiêu năm' }]}
+                        >
+                            <InputNumber
+                                min={0}
+                                step={5000}
+                                style={{ width: '100%' }}
+                                formatter={(value) => (value ? `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',') : '')}
+                            />
+                        </Form.Item>
+                        <Form.Item name="description" label="Ghi chú">
+                            <Input.TextArea rows={3} placeholder="Mô tả mục tiêu, ràng buộc..." />
+                        </Form.Item>
+                    </Form>
+                </Modal>
             </main>
         </div>
     );
