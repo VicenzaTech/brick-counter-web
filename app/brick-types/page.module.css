@@ -1281,3 +1281,55 @@
 .retryButton:hover {
   background: #2563eb;
 }
+
+/* Collapse/Expand Functionality Styles */
+.expandableRow {
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.expandableRow:hover {
+  background-color: #f9fafb;
+}
+
+.indexWithIcon {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.expandIcon {
+  color: #6b7280;
+  transition: transform 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.expandableRow:hover .expandIcon {
+  color: #4f46e5;
+}
+
+.expandedContent {
+  background-color: #f9fafb;
+}
+
+.expandedContentCell {
+  padding: 0 !important;
+  border-top: 1px solid #e5e7eb;
+}
+
+.expandedContentInner {
+  padding: 1.5rem;
+  animation: expandAnimation 0.3s ease-out;
+}
+
+@keyframes expandAnimation {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+

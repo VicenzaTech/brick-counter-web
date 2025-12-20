@@ -370,41 +370,6 @@ export function BrickTypeList({
           </div>
         </div>
       )}
-
-      <div className={styles.listContent}>
-        {brickTypes.length === 0 ? (
-          <div className={styles.emptyState}>
-            <p>Chưa có dạng gạch nào</p>
-            {canUpdate && onCreateNew && (
-              <button
-                type="button"
-                className={styles.createButton}
-                onClick={onCreateNew}
-              >
-                <Plus size={16} />
-                Thêm mới
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className={styles.brickList}>
-            {brickTypes.map((brick) => (
-              <BrickTypeCard
-                key={brick.id}
-                brick={brick}
-                isSelected={brick.id === selectedBrickId}
-                isCompareMode={compareMode}
-                isSelectedForCompare={selectedForCompare.has(brick.id)}
-                onSelect={onSelectBrick}
-                onToggleCompare={onToggleCompare}
-                onEdit={onEdit}
-                onDelete={onDelete}
-                canUpdate={canUpdate}
-              />
-            ))}
-          </div>
-        )}
-      </div>
     </div>
   );
 }

@@ -31,6 +31,8 @@ import {
   LayoutGrid,
   LayoutList,
   GitCompare,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import styles from "./BrickTypesPage.module.css";
 
@@ -83,6 +85,9 @@ export default function BrickTypesPage() {
   const [selectedBrickId, setSelectedBrickId] = useState<number | null>(null);
   const [showDetailPanel, setShowDetailPanel] = useState(false);
   const [chartMode, setChartMode] = useState<"day" | "month">("day");
+  
+  // Collapse/Expand State for Table View
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
 
   // Derived Data for Filters
   const uniqueSizes = useMemo(() => {
@@ -221,6 +226,16 @@ export default function BrickTypesPage() {
   const handleExitCompareMode = () => {
     setCompareMode(false);
     setSelectedForCompare(new Set());
+  };
+
+  const handleToggleRow = (id: number) => {
+    const newSet = new Set(expandedRows);
+    if (newSet.has(id)) {
+      newSet.delete(id);
+    } else {
+      newSet.add(id);
+    }
+    setExpandedRows(newSet);
   };
 
   const handleToggleActive = async (id: number, isActive: boolean) => {
@@ -559,100 +574,125 @@ export default function BrickTypesPage() {
                           </td>
                         </tr>
                       ) : (
-                        paginatedBricks.map((brick, index) => (
-                          <tr
-                            key={brick.id}
-                            className={
-                              selectedForCompare.has(brick.id)
-                                ? styles.selectedRow
-                                : ""
-                            }
-                          >
-                            {compareMode && (
-                              <td>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedForCompare.has(brick.id)}
-                                  onChange={(e) => {
-                                    e.stopPropagation();
-                                    handleToggleCompare(brick.id);
-                                  }}
-                                  disabled={
-                                    !selectedForCompare.has(brick.id) &&
-                                    selectedForCompare.size >= 5
-                                  }
-                                />
-                              </td>
-                            )}
-                            <td className={styles.colIndex}>
-                              {String(
-                                (currentPage - 1) * pageSize + index + 1
-                              ).padStart(2, "0")}
-                            </td>
-                            <td>
-                              <div className={styles.productName}>
-                                {brick.name}
-                              </div>
-                              {brick.nameEnglish && (
-                                <div className={styles.productCode}>
-                                  {brick.nameEnglish}
-                                </div>
-                              )}
-                            </td>
-                            <td className={styles.specText}>
-                              {brick.tileSize}
-                            </td>
-                            <td className={styles.specText}>
-                              {brick.thickness ? `${brick.thickness} mm` : "-"}
-                            </td>
-                            <td>
-                              {brick.brickType && (
-                                <span
-                                  className={`${styles.badge} ${getBadgeClass(
-                                    brick.brickType
-                                  )}`}
-                                >
-                                  {brick.brickType}
-                                </span>
-                              )}
-                            </td>
-                            <td className={styles.specText}>
-                              {brick.weightPerM2 || "-"}
-                            </td>
-                            <td className={styles.specText}>
-                              {brick.piecesPerBox || "-"}
-                            </td>
-                            <td>
-                              <div className={styles.actionButtons}>
-                                <button
-                                  className={`${styles.iconButton} ${styles.view}`}
-                                  onClick={() => handleEdit(brick)}
-                                  title="Xem chi tiết"
-                                >
-                                  <Eye size={18} />
-                                </button>
-                                {canUpdate && (
-                                  <button
-                                    className={`${styles.iconButton} ${styles.edit}`}
-                                    onClick={() => handleEdit(brick)}
-                                    title="Chỉnh sửa"
-                                  >
-                                    <Pencil size={18} />
-                                  </button>
+                        paginatedBricks.map((brick, index) => {
+                          const isExpanded = expandedRows.has(brick.id);
+                          return (
+                            <>
+                              <tr
+                                key={brick.id}
+                                className={`${
+                                  selectedForCompare.has(brick.id)
+                                    ? styles.selectedRow
+                                    : ""
+                                } ${styles.expandableRow}`}
+                                onClick={() => handleToggleRow(brick.id)}
+                              >
+                                {compareMode && (
+                                  <td onClick={(e) => e.stopPropagation()}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedForCompare.has(brick.id)}
+                                      onChange={(e) => {
+                                        e.stopPropagation();
+                                        handleToggleCompare(brick.id);
+                                      }}
+                                      disabled={
+                                        !selectedForCompare.has(brick.id) &&
+                                        selectedForCompare.size >= 5
+                                      }
+                                    />
+                                  </td>
                                 )}
-                                {canDelete && (
-                                  <button
-                                    className={`${styles.iconButton} ${styles.delete}`}
-                                    onClick={() => handleDeleteClick(brick)}
-                                    title="Xóa"
+                                <td className={styles.colIndex}>
+                                  <div className={styles.indexWithIcon}>
+                                    {isExpanded ? (
+                                      <ChevronUp size={16} className={styles.expandIcon} />
+                                    ) : (
+                                      <ChevronDown size={16} className={styles.expandIcon} />
+                                    )}
+                                    {String(
+                                      (currentPage - 1) * pageSize + index + 1
+                                    ).padStart(2, "0")}
+                                  </div>
+                                </td>
+                                <td>
+                                  <div className={styles.productName}>
+                                    {brick.name}
+                                  </div>
+                                  {brick.nameEnglish && (
+                                    <div className={styles.productCode}>
+                                      {brick.nameEnglish}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className={styles.specText}>
+                                  {brick.tileSize}
+                                </td>
+                                <td className={styles.specText}>
+                                  {brick.thickness ? `${brick.thickness} mm` : "-"}
+                                </td>
+                                <td>
+                                  {brick.brickType && (
+                                    <span
+                                      className={`${styles.badge} ${getBadgeClass(
+                                        brick.brickType
+                                      )}`}
+                                    >
+                                      {brick.brickType}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className={styles.specText}>
+                                  {brick.weightPerM2 || "-"}
+                                </td>
+                                <td className={styles.specText}>
+                                  {brick.piecesPerBox || "-"}
+                                </td>
+                                <td onClick={(e) => e.stopPropagation()}>
+                                  <div className={styles.actionButtons}>
+                                    <button
+                                      className={`${styles.iconButton} ${styles.view}`}
+                                      onClick={() => handleEdit(brick)}
+                                      title="Xem chi tiết"
+                                    >
+                                      <Eye size={18} />
+                                    </button>
+                                    {canUpdate && (
+                                      <button
+                                        className={`${styles.iconButton} ${styles.edit}`}
+                                        onClick={() => handleEdit(brick)}
+                                        title="Chỉnh sửa"
+                                      >
+                                        <Pencil size={18} />
+                                      </button>
+                                    )}
+                                    {canDelete && (
+                                      <button
+                                        className={`${styles.iconButton} ${styles.delete}`}
+                                        onClick={() => handleDeleteClick(brick)}
+                                        title="Xóa"
+                                      >
+                                        <Trash2 size={18} />
+                                      </button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                              {isExpanded && (
+                                <tr key={`${brick.id}-expanded`} className={styles.expandedContent}>
+                                  <td
+                                    colSpan={compareMode ? 9 : 8}
+                                    className={styles.expandedContentCell}
                                   >
-                                    <Trash2 size={18} />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))
+                                    <div className={styles.expandedContentInner}>
+                                      <BrickTypeStats brickId={brick.id} />
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
